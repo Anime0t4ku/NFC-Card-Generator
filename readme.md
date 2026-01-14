@@ -1,6 +1,6 @@
 # NFC Card Generator
 
-**nfc-card-generator.py** is a Python-based GUI tool designed to generate NFC-enabled game cards using predefined visual templates. It allows you to quickly create consistent, print-ready images while embedding NFC metadata into your workflow.
+**nfc-card-generator.py** is a Python-based GUI tool designed to generate NFC-enabled game cards using predefined visual templates. It allows you to quickly create consistent, print-ready images.
 
 The application is built with simplicity and repeatability in mind, making it ideal for physical game card projects, retro collections, and NFC-based launch systems.
 
