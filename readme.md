@@ -22,7 +22,7 @@ The application is built with simplicity and repeatability in mind, making it id
 
 ## Base Templates
 
-The application currently includes **three base templates**.
+The application currently includes **five base templates**.
 
 ---
 

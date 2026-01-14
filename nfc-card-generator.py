@@ -9,6 +9,8 @@ import threading
 import time
 import sys
 import subprocess
+import re
+from datetime import datetime
 
 # ---------------- CONFIG ----------------
 
@@ -16,6 +18,11 @@ CONFIG_FILE = "config.json"
 
 CLEAR_W = 609
 CLEAR_H = 840
+
+# Template 4 / 5 exact clear area
+T4_POSTER_W = 619
+T4_POSTER_H = 834
+T4_POSTER_Y = 80
 
 TEMPLATES = {
     "Template 1": {
@@ -25,7 +32,6 @@ TEMPLATES = {
         "mode": "framed"
     },
 
-    # TEMPLATE 2 – FINAL, LOCKED
     "Template 2": {
         "image_path": "templates/template_2.png",
         "center": {"x": 14, "y": 63, "w": 591, "h": 849},
@@ -33,17 +39,36 @@ TEMPLATES = {
         "mode": "framed"
     },
 
-    # TEMPLATE 3 – FINAL WITH MAX WIDTH SAFETY
     "Template 3": {
         "image_path": "templates/template_3.png",
         "poster_y": 120,
         "header_logo": {
             "height": 63,
-            "max_width": 250,   # prevents overlap with NFC logo
+            "max_width": 250,
             "top_margin": 62,
             "left_margin": 24
         },
         "mode": "layered"
+    },
+
+    # TEMPLATE 4 – FINAL (Color Scheme A)
+    "Template 4": {
+        "image_path": "templates/template_4.png",
+        "header_logo": {
+            "max_height": 62,
+            "top_margin": 10
+        },
+        "mode": "framed-top-logo"
+    },
+
+    # TEMPLATE 5 – CLONE OF TEMPLATE 4 (Color Scheme B)
+    "Template 5": {
+        "image_path": "templates/template_5.png",
+        "header_logo": {
+            "max_height": 62,
+            "top_margin": 10
+        },
+        "mode": "framed-top-logo"
     }
 }
 
@@ -88,6 +113,10 @@ def save_output_dir(path):
 def headers():
     return {"Authorization": f"Bearer {API_KEY}"}
 
+def sanitize_filename(name):
+    name = re.sub(r'[<>:"/\\|?*]', "", name)
+    return re.sub(r"\s+", " ", name).strip()
+
 # ---------------- STEAMGRIDDB ----------------
 
 def search_games(name):
@@ -110,58 +139,47 @@ def get_grids(game_id):
 
 def cover_image(img, w, h):
     ratio = max(w / img.width, h / img.height)
-    resized = img.resize(
-        (int(img.width * ratio), int(img.height * ratio)),
-        Image.LANCZOS
-    )
+    resized = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
     x = (resized.width - w) // 2
     y = (resized.height - h) // 2
     return resized.crop((x, y, x + w, y + h))
 
+def cover_image_top_aligned(img, w, h):
+    ratio = max(w / img.width, h / img.height)
+    resized = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+    x = (resized.width - w) // 2
+    return resized.crop((x, 0, x + w, h))
+
 def fit_to_width(img, target_width):
     scale = target_width / img.width
-    return img.resize(
-        (target_width, int(img.height * scale)),
-        Image.LANCZOS
-    )
+    return img.resize((target_width, int(img.height * scale)), Image.LANCZOS)
 
 def apply_footer_logo(base, logo_path, cfg):
     logo = Image.open(logo_path).convert("RGBA")
     f = cfg["footer"]
-
     scale = f["logo_height"] / logo.height
-    logo = logo.resize(
-        (int(logo.width * scale), f["logo_height"]),
-        Image.LANCZOS
-    )
-
-    x = f["logo_margin"]
+    logo = logo.resize((int(logo.width * scale), f["logo_height"]), Image.LANCZOS)
     y = base.height - f["height"] + (f["height"] - logo.height) // 2
-    base.paste(logo, (x, y), logo)
+    base.paste(logo, (f["logo_margin"], y), logo)
 
 def apply_header_logo(base, logo_path, cfg):
     logo = Image.open(logo_path).convert("RGBA")
     h = cfg["header_logo"]
+    scale = h["height"] / logo.height
+    logo = logo.resize((int(logo.width * scale), h["height"]), Image.LANCZOS)
+    if logo.width > h.get("max_width", logo.width):
+        scale = h["max_width"] / logo.width
+        logo = logo.resize((h["max_width"], int(logo.height * scale)), Image.LANCZOS)
+    base.paste(logo, (h["left_margin"], h["top_margin"]), logo)
 
-    # Scale to fixed height first
-    scale_h = h["height"] / logo.height
-    logo = logo.resize(
-        (int(logo.width * scale_h), h["height"]),
-        Image.LANCZOS
-    )
-
-    # Clamp width if needed (never increases height)
-    max_w = h.get("max_width")
-    if max_w and logo.width > max_w:
-        scale_w = max_w / logo.width
-        logo = logo.resize(
-            (max_w, int(logo.height * scale_w)),
-            Image.LANCZOS
-        )
-
-    x = h["left_margin"]
-    y = h["top_margin"]
-    base.paste(logo, (x, y), logo)
+def apply_top_center_logo(base, logo_path, cfg):
+    logo = Image.open(logo_path).convert("RGBA")
+    h = cfg["header_logo"]
+    if logo.height > h["max_height"]:
+        scale = h["max_height"] / logo.height
+        logo = logo.resize((int(logo.width * scale), h["max_height"]), Image.LANCZOS)
+    x = (base.width - logo.width) // 2
+    base.paste(logo, (x, h["top_margin"]), logo)
 
 # ---------------- GUI ----------------
 
@@ -177,6 +195,7 @@ class App(tk.Tk):
         self.output_dir = load_output_dir()
         self.template_var = tk.StringVar(value="Template 1")
         self.selected_poster_image = None
+        self.current_game_title = None
 
         self.template_imgs = {}
         self.thumb_imgs = []
@@ -238,7 +257,7 @@ class App(tk.Tk):
                 compound="top",
                 value=name,
                 variable=self.template_var,
-                command=self.refresh_preview
+                command=self.render_with_current_template
             ).pack(side="left", padx=8)
 
     def build_ui(self):
@@ -256,11 +275,9 @@ class App(tk.Tk):
         main = ttk.Frame(self)
         main.pack(fill="both", expand=True)
 
-        main.columnconfigure(0, weight=1)
-        main.columnconfigure(1, weight=0)
-        main.columnconfigure(2, weight=1)
+        main.columnconfigure(1, weight=1)
+        main.columnconfigure(2, weight=2)
         main.rowconfigure(0, weight=1)
-        main.rowconfigure(1, weight=0)
 
         selector_container = ttk.Frame(main)
         selector_container.grid(row=0, column=1, padx=20, sticky="n")
@@ -275,10 +292,7 @@ class App(tk.Tk):
         self.thumb_frame = ttk.Frame(self.canvas)
         self.canvas.create_window((260, 0), window=self.thumb_frame, anchor="n")
 
-        self.thumb_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
+        self.thumb_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
 
         self.loading_label = ttk.Label(self.thumb_frame, text="Loading images…", foreground="gray")
 
@@ -293,20 +307,18 @@ class App(tk.Tk):
 
         self.preview_label = ttk.Label(preview_frame)
         self.preview_label.pack(expand=True, fill="both")
-        self.preview_label.bind("<Configure>", self.on_preview_resize)
 
         bottom = ttk.Frame(main)
         bottom.grid(row=1, column=0, columnspan=3, pady=10)
 
         ttk.Button(bottom, text="Set Output Folder", command=self.choose_output_dir).pack(side="left", padx=10)
-
         self.open_folder_btn = ttk.Button(bottom, text="Open Output Folder", command=self.open_output_dir)
         ttk.Button(bottom, text="Save Image", command=self.save).pack(side="left")
 
         self.status_label = ttk.Label(bottom, text="", foreground="green")
         self.status_label.pack(side="left", padx=15)
 
-    # -------- RENDERING --------
+    # -------- RENDER --------
 
     def render_with_current_template(self):
         cfg = TEMPLATES[self.template_var.get()]
@@ -314,24 +326,33 @@ class App(tk.Tk):
 
         if cfg["mode"] == "layered":
             base = Image.new("RGBA", template_img.size, (0, 0, 0, 0))
-
             if self.selected_poster_image:
                 poster = fit_to_width(self.selected_poster_image, CLEAR_W)
                 x = (template_img.width - poster.width) // 2
-                y = cfg["poster_y"]
-                base.paste(poster, (x, y))
-
+                base.paste(poster, (x, cfg["poster_y"]))
             base.paste(template_img, (0, 0), template_img)
-
             if self.logo_path:
                 apply_header_logo(base, self.logo_path, cfg)
 
-        else:
+        elif cfg["mode"] == "framed-top-logo":
             base = template_img.copy()
 
             if self.logo_path:
-                apply_footer_logo(base, self.logo_path, cfg)
+                apply_top_center_logo(base, self.logo_path, cfg)
 
+            if self.selected_poster_image:
+                poster = cover_image_top_aligned(
+                    self.selected_poster_image,
+                    T4_POSTER_W,
+                    T4_POSTER_H
+                )
+                x = (base.width - T4_POSTER_W) // 2
+                base.paste(poster, (x, T4_POSTER_Y), poster)
+
+        else:
+            base = template_img.copy()
+            if self.logo_path:
+                apply_footer_logo(base, self.logo_path, cfg)
             if self.selected_poster_image:
                 c = cfg["center"]
                 poster = cover_image(self.selected_poster_image, c["w"], c["h"])
@@ -340,24 +361,13 @@ class App(tk.Tk):
         self.output_image = base
         self.update_preview(base)
 
-    def refresh_preview(self):
-        self.render_with_current_template()
-
-    def on_preview_resize(self, event):
-        if self.output_image:
-            self.update_preview(self.output_image)
-
     def update_preview(self, base):
         w = self.preview_label.winfo_width()
         h = self.preview_label.winfo_height()
         if w <= 1 or h <= 1:
             return
-
         scale = min(w / base.width, h / base.height)
-        img = base.resize(
-            (int(base.width * scale), int(base.height * scale)),
-            Image.LANCZOS
-        )
+        img = base.resize((int(base.width * scale), int(base.height * scale)), Image.LANCZOS)
         self.preview_image = ImageTk.PhotoImage(img)
         self.preview_label.configure(image=self.preview_image)
 
@@ -377,7 +387,9 @@ class App(tk.Tk):
         if not game:
             return
 
+        self.current_game_title = game["name"]
         self.show_loading()
+
         threading.Thread(
             target=self.fetch_thumbs_thread,
             args=(game["id"],),
@@ -464,7 +476,10 @@ class App(tk.Tk):
         if not self.output_image or not self.output_dir:
             return
 
-        filename = f"nfc_card_{int(time.time())}.png"
+        name = sanitize_filename(self.current_game_title or "nfc_card")
+        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        filename = f"{name}_{ts}.png"
+
         self.output_image.save(os.path.join(self.output_dir, filename))
         self.show_status("Image saved")
 
