@@ -16,6 +16,7 @@ The application is built with simplicity and repeatability in mind, making it id
 - One-click access to the output folder
 - Visual feedback when images are successfully saved
 - Includes a bundled system logo pack for use with the templates
+- Artwork search powered by the SteamGridDB API
 
 ---
 
@@ -45,6 +46,25 @@ These logos are intended to be used directly with the provided templates and hel
 - Python 3.9 or newer
 - Pillow
 - Requests
+- SteamGridDB API key
+
+---
+
+## SteamGridDB API
+
+This application uses the **SteamGridDB API** to search for and retrieve game artwork.
+
+A valid API key is **required** for artwork search functionality.
+
+### How to get an API key
+
+1. Create an account at https://www.steamgriddb.com
+2. Go to your account settings
+3. Generate a personal API key
+
+The API key must be added to the application configuration as instructed by the app.
+
+Without a SteamGridDB API key, artwork search will not function.
 
 ---
 
@@ -84,6 +104,7 @@ The application automatically creates a `config.json` file on first run.
 Stored settings include:
 
 - Selected output directory
+- SteamGridDB API key
 
 This allows the app to remember your preferences between sessions without requiring reconfiguration.
 
