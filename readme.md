@@ -15,7 +15,7 @@ The tool is designed around repeatability and ease of use, making it ideal for p
 
 ![NFC Card Generator Screenshot 2](templates/screenshot2.png)
 
-*Example showing games.*
+*Example showing movies.*
 
 ---
 ## Features
