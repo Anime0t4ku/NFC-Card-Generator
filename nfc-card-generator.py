@@ -6,7 +6,6 @@ from tkinter import ttk, filedialog, messagebox
 import json
 import os
 import threading
-import time
 import sys
 import subprocess
 import re
@@ -18,6 +17,9 @@ CONFIG_FILE = "config.json"
 
 CLEAR_W = 609
 CLEAR_H = 840
+
+T3_MAX_HEIGHT = 840
+T3_OVERFLOW_PAD = 120  # guarantees bottom fill for Template 3
 
 T4_POSTER_W = 619
 T4_POSTER_H = 834
@@ -156,6 +158,15 @@ def fit_to_width(img, target_width):
     scale = target_width / img.width
     return img.resize((target_width, int(img.height * scale)), Image.LANCZOS)
 
+def force_vertical_overflow(img, min_height):
+    if img.height >= min_height:
+        return img
+    scale = min_height / img.height
+    return img.resize(
+        (int(img.width * scale), int(img.height * scale)),
+        Image.LANCZOS
+    )
+
 def apply_footer_logo(base, logo_path, cfg):
     logo = Image.open(logo_path).convert("RGBA")
     f = cfg["footer"]
@@ -195,6 +206,7 @@ class App(tk.Tk):
         self.logo_path = None
         self.output_image = None
         self.output_dir = load_output_dir()
+
         self.template_var = tk.StringVar(value="Template 1")
         self.crop_mode = tk.StringVar(value="center")
         self.crop_offset = tk.IntVar(value=0)
@@ -240,7 +252,7 @@ class App(tk.Tk):
         d.wait_window()
         return load_api_key()
 
-    # -------- UI --------
+    # -------- UI BUILD --------
 
     def build_template_selector(self):
         frame = ttk.LabelFrame(self, text="Select Template")
@@ -248,7 +260,10 @@ class App(tk.Tk):
 
         for name, cfg in TEMPLATES.items():
             img = Image.open(cfg["image_path"])
-            img = img.resize((TEMPLATE_THUMB_W, int(TEMPLATE_THUMB_W * img.height / img.width)), Image.LANCZOS)
+            img = img.resize(
+                (TEMPLATE_THUMB_W, int(TEMPLATE_THUMB_W * img.height / img.width)),
+                Image.LANCZOS
+            )
             tk_img = ImageTk.PhotoImage(img)
             self.template_imgs[name] = tk_img
 
@@ -263,7 +278,7 @@ class App(tk.Tk):
             ).pack(side="left", padx=8)
 
     def build_crop_controls(self):
-        frame = ttk.LabelFrame(self, text="Poster Crop Mode (Does not work with Template 3)")
+        frame = ttk.LabelFrame(self, text="Poster Crop Mode")
         frame.pack(pady=6)
 
         for m in ("center", "top", "bottom", "manual"):
@@ -322,8 +337,10 @@ class App(tk.Tk):
 
         self.thumb_frame = ttk.Frame(self.canvas)
         self.canvas.create_window((260, 0), window=self.thumb_frame, anchor="n")
-
-        self.thumb_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.thumb_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
 
         self.loading_label = ttk.Label(self.thumb_frame, text="Loading images…", foreground="gray")
 
@@ -369,27 +386,42 @@ class App(tk.Tk):
 
         if cfg["mode"] == "layered":
             base = Image.new("RGBA", template_img.size, (0, 0, 0, 0))
+
             if self.selected_poster_image:
-                poster = fit_to_width(self.selected_poster_image, CLEAR_W)
+                if self.crop_mode.get() == "center":
+                    poster = fit_to_width(self.selected_poster_image, CLEAR_W)
+                else:
+                    cropped = crop(self.selected_poster_image, CLEAR_W, T3_MAX_HEIGHT)
+                    poster = force_vertical_overflow(
+                        cropped,
+                        T3_MAX_HEIGHT + T3_OVERFLOW_PAD
+                    )
+
                 x = (template_img.width - poster.width) // 2
                 base.paste(poster, (x, cfg["poster_y"]))
+
             base.paste(template_img, (0, 0), template_img)
+
             if self.logo_path:
                 apply_header_logo(base, self.logo_path, cfg)
 
         elif cfg["mode"] == "framed-top-logo":
             base = template_img.copy()
+
             if self.selected_poster_image:
                 poster = crop(self.selected_poster_image, T4_POSTER_W, T4_POSTER_H)
                 x = (base.width - T4_POSTER_W) // 2
                 base.paste(poster, (x, T4_POSTER_Y), poster)
+
             if self.logo_path:
                 apply_top_center_logo(base, self.logo_path, cfg)
 
         else:
             base = template_img.copy()
+
             if self.logo_path:
                 apply_footer_logo(base, self.logo_path, cfg)
+
             if self.selected_poster_image:
                 c = cfg["center"]
                 poster = crop(self.selected_poster_image, c["w"], c["h"])
@@ -404,7 +436,10 @@ class App(tk.Tk):
         if w <= 1 or h <= 1:
             return
         scale = min(w / base.width, h / base.height)
-        img = base.resize((int(base.width * scale), int(base.height * scale)), Image.LANCZOS)
+        img = base.resize(
+            (int(base.width * scale), int(base.height * scale)),
+            Image.LANCZOS
+        )
         self.preview_image = ImageTk.PhotoImage(img)
         self.preview_label.configure(image=self.preview_image)
 
@@ -439,7 +474,12 @@ class App(tk.Tk):
                 w.destroy()
         self.thumb_imgs.clear()
         self.canvas.yview_moveto(0)
-        self.loading_label.grid(row=0, column=0, columnspan=THUMBS_PER_ROW, pady=15)
+        self.loading_label.grid(
+            row=0,
+            column=0,
+            columnspan=THUMBS_PER_ROW,
+            pady=15
+        )
 
     def fetch_thumbs_thread(self, game_id):
         grids = get_grids(game_id)
@@ -449,7 +489,10 @@ class App(tk.Tk):
             try:
                 r = requests.get(grid["url"], timeout=10)
                 r.raise_for_status()
-                self.after(0, lambda g=grid, d=r.content: self.add_thumb_from_data(g, d))
+                self.after(
+                    0,
+                    lambda g=grid, d=r.content: self.add_thumb_from_data(g, d)
+                )
             except Exception:
                 pass
 
@@ -474,7 +517,9 @@ class App(tk.Tk):
         )
 
     def apply_poster(self, grid):
-        poster = Image.open(BytesIO(requests.get(grid["url"]).content)).convert("RGBA")
+        poster = Image.open(
+            BytesIO(requests.get(grid["url"]).content)
+        ).convert("RGBA")
         self.selected_poster_image = poster
         self.render_with_current_template()
 
@@ -507,7 +552,10 @@ class App(tk.Tk):
         self.status_label.config(text=text)
         if self.status_after_id:
             self.after_cancel(self.status_after_id)
-        self.status_after_id = self.after(3000, lambda: self.status_label.config(text=""))
+        self.status_after_id = self.after(
+            3000,
+            lambda: self.status_label.config(text="")
+        )
 
     def save(self):
         if not self.output_image or not self.output_dir:
