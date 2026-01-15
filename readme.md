@@ -1,35 +1,40 @@
 # NFC Card Generator
 
-**nfc-card-generator.py** is a Python-based GUI tool designed to generate NFC-enabled game cards using predefined visual templates. It allows you to quickly create consistent, print-ready images.
+**nfc-card-generator.py** is a Python-based GUI application for generating NFC-enabled game cards using predefined visual templates. It allows you to quickly create consistent, print-ready card images with minimal manual adjustment.
 
-The application is built with simplicity and repeatability in mind, making it ideal for physical game card projects, retro collections, and NFC-based launch systems.
+The tool is designed around repeatability and ease of use, making it ideal for physical game card projects, retro game collections, and NFC-based launch or display systems.
 
 ---
 
 ## Features
 
-- Graphical user interface built with Tkinter
-- Supports multiple base templates
-- Automatic image placement while preserving aspect ratio
+- Desktop GUI built with Tkinter
+- Supports multiple predefined base templates
+- Live preview of the generated card
+- Automatic artwork scaling while preserving aspect ratio
+- Template-aware image placement with fixed clear areas
+- SteamGridDB-powered artwork search and selection
+- Bundled system logo pack for consistent platform branding
 - Configurable output directory
+- Automatic saving to the selected output folder
+- Optional one-click access to the output folder
+- Visual confirmation message when images are saved
 - Persistent settings stored in `config.json`
-- One-click access to the output folder
-- Visual feedback when images are successfully saved
-- Includes a bundled system logo pack for use with the templates
-- Artwork search powered by the SteamGridDB API
 
 ---
 
 ## Base Templates
 
-The application currently includes **five base templates**.
+The application currently includes **five base templates**, each with its own layout and visual style.  
+Templates are designed with fixed clear areas to ensure correct artwork placement and consistent results.
 
 ---
 
 ## Included Assets
 
-This repository includes a **system logo pack** containing commonly used platform and console logos.  
-These logos are intended to be used directly with the provided templates and help ensure consistent visual results.
+This repository includes a **system logo pack** containing commonly used platform and console logos.
+
+These logos are intended to be used directly with the included templates and are positioned automatically to match each template’s layout.
 
 ---
 
@@ -37,7 +42,7 @@ These logos are intended to be used directly with the provided templates and hel
 
 ![NFC Card Generator Screenshot](templates/screenshot.png)
 
-*Example showing template selection, artwork search, live preview, and system logo integration.*
+*Example showing template selection, SteamGridDB artwork search, live preview, and system logo integration.*
 
 ---
 
@@ -52,31 +57,31 @@ These logos are intended to be used directly with the provided templates and hel
 
 ## SteamGridDB API
 
-This application uses the **SteamGridDB API** to search for and retrieve game artwork.
+Artwork search functionality is powered by the **SteamGridDB API**.
 
-A valid API key is **required** for artwork search functionality.
+A valid API key is **required** to search for and retrieve game artwork.
 
-### How to get an API key
+### Obtaining an API key
 
 1. Create an account at https://www.steamgriddb.com
-2. Go to your account settings
+2. Open your account settings
 3. Generate a personal API key
 
-The API key must be added to the application configuration as instructed by the app.
+The API key must be entered into the application when prompted or added to the configuration file.
 
 Without a SteamGridDB API key, artwork search will not function.
 
 ---
 
-## Tkinter (Linux users)
+## Tkinter (Linux Users)
 
-On Linux systems, **Tkinter is not always installed by default** and must be installed manually.
+On some Linux distributions, **Tkinter is not installed by default** and must be installed manually.
 
 Required package:
 
     python3-pillow-tk
 
-If Tkinter is missing, the application will not start.
+If Tkinter is missing, the application will fail to launch.
 
 ---
 
@@ -99,14 +104,14 @@ If Tkinter is missing, the application will not start.
 
 ## Configuration
 
-The application automatically creates a `config.json` file on first run.
+On first launch, the application automatically creates a `config.json` file.
 
 Stored settings include:
 
-- Selected output directory
+- Output directory
 - SteamGridDB API key
 
-This allows the app to remember your preferences between sessions without requiring reconfiguration.
+These settings persist between sessions, allowing the application to start with your previous configuration intact.
 
 ---
 
