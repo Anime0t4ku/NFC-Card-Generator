@@ -69,7 +69,9 @@ TEMPLATE_THUMB_W = 140
 PREVIEW_MIN_W = 340
 PREVIEW_MIN_H = 520
 
-API_KEY = None
+API_KEY = None        # SteamGridDB
+TMDB_API_KEY = None   # TMDB
+TMDB_IMG_BASE = "https://image.tmdb.org/t/p/original"
 
 # ---------------- CONFIG HELPERS ----------------
 
@@ -83,12 +85,13 @@ def save_config(cfg):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
 
-def load_api_key():
-    return load_config().get("steamgriddb_api_key")
-
-def save_api_key(key):
+def load_api_key(service="steamgriddb"):
     cfg = load_config()
-    cfg["steamgriddb_api_key"] = key
+    return cfg.get(f"{service}_api_key")
+
+def save_api_key(key, service="steamgriddb"):
+    cfg = load_config()
+    cfg[f"{service}_api_key"] = key
     save_config(cfg)
 
 def load_output_dir():
@@ -123,6 +126,60 @@ def get_grids(game_id):
     )
     r.raise_for_status()
     return r.json()["data"]
+
+
+# ---------------- TMDB ----------------
+
+def tmdb_search_multi(query):
+    r = requests.get(
+        "https://api.themoviedb.org/3/search/multi",
+        params={
+            "api_key": load_api_key("tmdb"),
+            "query": query,
+            "include_adult": False
+        },
+        timeout=10
+    )
+    r.raise_for_status()
+
+    results = []
+    for item in r.json().get("results", []):
+        if item.get("media_type") not in ("movie", "tv"):
+            continue
+
+        title = item.get("title") or item.get("name")
+        year = None
+
+        if item.get("release_date"):
+            year = item["release_date"][:4]
+        elif item.get("first_air_date"):
+            year = item["first_air_date"][:4]
+
+        results.append({
+            "id": item["id"],
+            "title": title,
+            "year": year,
+            "media_type": item["media_type"]
+        })
+
+    return results
+
+
+def tmdb_get_posters(item):
+    media_type = item["media_type"]
+    tmdb_id = item["id"]
+
+    r = requests.get(
+        f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}/images",
+        params={
+            "api_key": load_api_key("tmdb"),
+            "include_image_language": "en,null"
+        },
+        timeout=10
+    )
+    r.raise_for_status()
+
+    return r.json().get("posters", [])
 
 # ---------------- IMAGE HELPERS ----------------
 
@@ -222,7 +279,7 @@ def apply_top_center_logo(base, logo_path, cfg):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("NFC Card Generator v1.3")
+        self.title("NFC Card Generator v1.6")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -233,6 +290,7 @@ class App(tk.Tk):
         self.template_var = tk.StringVar(value="Template 1")
         self.crop_mode = tk.StringVar(value="center")
         self.crop_offset = tk.IntVar(value=0)
+        self.source_var = tk.StringVar(value="steam")  # steam | tmdb
 
         self.selected_poster_image = None
         self.poster_orientation = "vertical"
@@ -248,28 +306,48 @@ class App(tk.Tk):
         if self.output_dir and os.path.isdir(self.output_dir):
             self.show_open_folder_button()
 
-    def ensure_api_key(self):
-        global API_KEY
-        if API_KEY:
-            return True
-        API_KEY = load_api_key()
-        if API_KEY:
+    def ensure_api_key(self, service="steamgriddb"):
+        global API_KEY, TMDB_API_KEY
+
+        key_var = API_KEY if service == "steamgriddb" else TMDB_API_KEY
+        if key_var:
             return True
 
+        key = load_api_key(service)
+        if key:
+            if service == "steamgriddb":
+                API_KEY = key
+            else:
+                TMDB_API_KEY = key
+            return True
+
+        title = "SteamGridDB API Key" if service == "steamgriddb" else "TMDB API Key"
+
         d = tk.Toplevel(self)
-        d.title("SteamGridDB API Key")
+        d.title(title)
         d.geometry("420x160")
         d.grab_set()
 
-        ttk.Label(d, text="Enter your SteamGridDB API key").pack(pady=10)
+        ttk.Label(d, text=f"Enter your {title}").pack(pady=10)
         e = ttk.Entry(d, width=50)
         e.pack()
 
-        ttk.Button(d, text="Save", command=lambda: (save_api_key(e.get()), d.destroy())).pack(pady=10)
+        ttk.Button(
+            d,
+            text="Save",
+            command=lambda: (save_api_key(e.get(), service), d.destroy())
+        ).pack(pady=10)
+
         d.wait_window()
 
-        API_KEY = load_api_key()
-        return API_KEY is not None
+        key = load_api_key(service)
+        if service == "steamgriddb":
+            API_KEY = key
+        else:
+            TMDB_API_KEY = key
+
+        return key is not None
+
     # -------- UI BUILD --------
 
     def build_template_selector(self):
@@ -330,13 +408,34 @@ class App(tk.Tk):
         controls = ttk.Frame(self)
         controls.pack(pady=5)
 
-        ttk.Button(controls, text="Upload System Logo", command=self.load_logo).pack(side="left", padx=5)
-        ttk.Button(controls, text="Upload Poster Image", command=self.load_local_poster).pack(side="left", padx=5)
+        ttk.Button(controls, text="Import System Logo", command=self.load_logo).pack(side="left", padx=5)
+        ttk.Button(controls, text="Import Poster Image", command=self.load_local_poster).pack(side="left", padx=5)
 
-        ttk.Label(controls, text="Game:").pack(side="left")
+        ttk.Label(controls, text="Source:").pack(side="left", padx=(0, 4))
+
+        ttk.Radiobutton(
+            controls,
+            text="SteamGridDB",
+            variable=self.source_var,
+            value="steam"
+        ).pack(side="left")
+
+        ttk.Radiobutton(
+            controls,
+            text="TMDB",
+            variable=self.source_var,
+            value="tmdb"
+        ).pack(side="left", padx=(0, 10))
+
+        ttk.Label(controls, text="Search:").pack(side="left")
         self.game_entry = ttk.Entry(controls, width=30)
         self.game_entry.pack(side="left", padx=5)
-        ttk.Button(controls, text="Search", command=self.search).pack(side="left")
+
+        ttk.Button(
+            controls,
+            text="Search",
+            command=self.search
+        ).pack(side="left")
 
         main = ttk.Frame(self)
         main.pack(fill="both", expand=True)
@@ -489,33 +588,58 @@ class App(tk.Tk):
         self.preview_image = ImageTk.PhotoImage(img)
         self.preview_label.configure(image=self.preview_image)
 
-    # -------- STEAMGRIDDB --------
+    # -------- SEARCH (SteamGridDB + TMDB) --------
 
     def search(self):
-        if not self.ensure_api_key():
+        query = self.game_entry.get().strip()
+        if not query:
             return
 
         if not self.logo_path:
             messagebox.showerror("Error", "Upload a system logo first")
             return
 
-        query = self.game_entry.get().strip()
-        if not query:
-            return
+        # SteamGridDB (default)
+        if not hasattr(self, "source_var") or self.source_var.get() == "steam":
+            if not self.ensure_api_key("steamgriddb"):
+                return
 
-        games = search_games(query)
-        game = self.pick_game(games)
-        if not game:
-            return
+            games = search_games(query)
+            game = self.pick_game(games)
+            if not game:
+                return
 
-        self.current_game_title = game["name"]
-        self.show_loading()
+            self.current_game_title = game["name"]
+            self.show_loading()
 
-        threading.Thread(
-            target=self.fetch_thumbs_thread,
-            args=(game["id"],),
-            daemon=True
-        ).start()
+            threading.Thread(
+                target=self.fetch_steam_thumbs_thread,
+                args=(game["id"],),
+                daemon=True
+            ).start()
+
+        # TMDB (movies + TV)
+        else:
+            if not self.ensure_api_key("tmdb"):
+                return
+
+            results = tmdb_search_multi(query)
+            item = self.pick_tmdb_item(results)
+            if not item:
+                return
+
+            title = item["title"]
+            if item.get("year"):
+                title += f" ({item['year']})"
+            self.current_game_title = title
+
+            self.show_loading()
+
+            threading.Thread(
+                target=self.fetch_tmdb_thumb_thread,
+                args=(item,),
+                daemon=True
+            ).start()
 
     def show_loading(self):
         for w in self.thumb_frame.winfo_children():
@@ -530,7 +654,9 @@ class App(tk.Tk):
             pady=15
         )
 
-    def fetch_thumbs_thread(self, game_id):
+    # -------- STEAMGRIDDB THUMBS --------
+
+    def fetch_steam_thumbs_thread(self, game_id):
         grids = get_grids(game_id)
         vertical = [g for g in grids if g["width"] < g["height"]]
 
@@ -540,14 +666,14 @@ class App(tk.Tk):
                 r.raise_for_status()
                 self.after(
                     0,
-                    lambda g=grid, d=r.content: self.add_thumb_from_data(g, d)
+                    lambda g=grid, d=r.content: self.add_steam_thumb_from_data(g, d)
                 )
             except Exception:
                 pass
 
         self.after(150, self.loading_label.grid_forget)
 
-    def add_thumb_from_data(self, grid, data):
+    def add_steam_thumb_from_data(self, grid, data):
         i = len(self.thumb_imgs)
         img = Image.open(BytesIO(data)).convert("RGBA")
         img = img.resize((THUMB_W, THUMB_H), Image.LANCZOS)
@@ -557,7 +683,7 @@ class App(tk.Tk):
         ttk.Button(
             self.thumb_frame,
             image=tk_img,
-            command=lambda g=grid: self.apply_poster(g)
+            command=lambda g=grid: self.apply_steam_poster(g)
         ).grid(
             row=(i // THUMBS_PER_ROW) + 1,
             column=i % THUMBS_PER_ROW,
@@ -565,13 +691,89 @@ class App(tk.Tk):
             pady=5
         )
 
-    def apply_poster(self, grid):
+    def apply_steam_poster(self, grid):
         poster = Image.open(
             BytesIO(requests.get(grid["url"]).content)
         ).convert("RGBA")
 
         self.selected_poster_image = poster
         self.poster_orientation = "horizontal" if poster.width > poster.height else "vertical"
+        self.render_with_current_template()
+
+    # -------- TMDB THUMBS --------
+
+    def pick_tmdb_item(self, items):
+        d = tk.Toplevel(self)
+        d.title("Select Movie / TV Show")
+        d.geometry("520x420")
+        d.grab_set()
+
+        lb = tk.Listbox(d)
+        lb.pack(fill="both", expand=True)
+
+        for item in items:
+            label = item["title"]
+            if item.get("year"):
+                label += f" ({item['media_type'].upper()}, {item['year']})"
+            lb.insert(tk.END, label)
+
+        lb.selection_set(0)
+        result = {"item": None}
+
+        def confirm():
+            if lb.curselection():
+                result["item"] = items[lb.curselection()[0]]
+            d.destroy()
+
+        ttk.Button(d, text="Select", command=confirm).pack()
+        d.wait_window()
+        return result["item"]
+
+    def fetch_tmdb_thumb_thread(self, item):
+        try:
+            posters = tmdb_get_posters(item)
+
+            for poster in posters:
+                path = poster.get("file_path")
+                if not path:
+                    continue
+
+                url = TMDB_IMG_BASE + path
+                r = requests.get(url, timeout=10)
+                r.raise_for_status()
+
+                self.after(
+                    0,
+                    lambda d=r.content: self.add_tmdb_thumb_from_data(d)
+                )
+
+        except Exception:
+            pass
+
+        self.after(150, self.loading_label.grid_forget)
+
+    def add_tmdb_thumb_from_data(self, data):
+        i = len(self.thumb_imgs)
+        img = Image.open(BytesIO(data)).convert("RGBA")
+        img = img.resize((THUMB_W, THUMB_H), Image.LANCZOS)
+        tk_img = ImageTk.PhotoImage(img)
+        self.thumb_imgs.append(tk_img)
+
+        ttk.Button(
+            self.thumb_frame,
+            image=tk_img,
+            command=lambda d=data: self.apply_tmdb_poster(d)
+        ).grid(
+            row=(i // THUMBS_PER_ROW) + 1,
+            column=i % THUMBS_PER_ROW,
+            padx=5,
+            pady=5
+        )
+
+    def apply_tmdb_poster(self, data):
+        poster = Image.open(BytesIO(data)).convert("RGBA")
+        self.selected_poster_image = poster
+        self.poster_orientation = "vertical"
         self.render_with_current_template()
 
     # -------- OUTPUT --------

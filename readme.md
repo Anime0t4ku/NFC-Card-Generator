@@ -1,25 +1,91 @@
 # NFC Card Generator
 
-**nfc-card-generator.py** is a Python-based GUI application for generating NFC-enabled game cards using predefined visual templates. It allows you to quickly create consistent, print-ready card images with minimal manual adjustment.
+**nfc-card-generator.py** is a Python-based GUI application for generating **print-ready NFC card artwork** using predefined visual templates.  
+It supports **games, movies, and TV shows**, allowing you to search for official or community artwork and generate consistent card images with minimal manual adjustment.
 
-The tool is designed around repeatability and ease of use, making it ideal for physical game card projects, retro game collections, and NFC-based launch or display systems.
+The tool is designed around repeatability and ease of use, making it ideal for physical NFC card projects, retro collections, and media-based launch or display systems.
 
 ---
 
+## Screenshots
+
+![NFC Card Generator Screenshot](templates/screenshot.png)
+
+*Example showing games.*
+
+![NFC Card Generator Screenshot 2](templates/screenshot2.png)
+
+*Example showing games.*
+
+---
 ## Features
 
+### General
 - Desktop GUI built with Tkinter
-- Supports multiple predefined base templates
 - Live preview of the generated card
 - Automatic artwork scaling while preserving aspect ratio
 - Template-aware image placement with fixed clear areas
-- SteamGridDB-powered artwork search and selection
-- Bundled system logo pack for consistent platform branding
+- Manual crop adjustment when needed
+- Persistent settings stored in `config.json`
+
+---
+
+### Game Artwork (SteamGridDB)
+- Search and select games via SteamGridDB
+- Multiple community-created posters per game
+- Vertical poster filtering
+- Asynchronous image loading with no UI freezing
+
+---
+
+### Movie & TV Artwork (TMDB)
+- Unified search for **movies and TV shows**
+- Official posters retrieved directly from TMDB
+- Displays **all available poster variants** per title
+- English posters preferred with automatic fallback
+- Automatic release year detection for accurate naming
+
+---
+
+### Unified Search Workflow
+- Single search bar for all content types
+- Source selector for SteamGridDB or TMDB
+- Title picker dialog for search results
+- Shared thumbnail grid for all artwork sources
+
+---
+
+### Templates & Rendering
+- Supports multiple predefined base templates
+- Framed and layered layout styles
+- Header and footer logo placement
+- Automatic logo scaling and alignment
+- Template previews shown directly in the UI
+
+---
+
+### Local Image Support
+- Import custom poster images from disk
+- Automatic orientation detection (horizontal / vertical)
+- Works without any API usage
+- Suitable for fan art or custom designs
+
+---
+
+### Output & File Handling
 - Configurable output directory
 - Automatic saving to the selected output folder
-- Optional one-click access to the output folder
-- Visual confirmation message when images are saved
-- Persistent settings stored in `config.json`
+- One-click access to the output folder
+- Timestamped filenames to prevent overwrites
+- Movie and TV titles include release year in filenames
+
+---
+
+### API Key Management
+- SteamGridDB and TMDB API keys stored locally
+- Keys requested only when required
+- Separate handling per service
+- No hardcoded credentials
 
 ---
 
@@ -38,38 +104,35 @@ These logos are intended to be used directly with the included templates and are
 
 ---
 
-## Screenshot
-
-![NFC Card Generator Screenshot](templates/screenshot.png)
-
-*Example showing template selection, SteamGridDB artwork search, live preview, and system logo integration.*
-
----
-
 ## Requirements
 
 - Python 3.9 or newer
 - Pillow
 - Requests
-- SteamGridDB API key
+- SteamGridDB API key (for game artwork)
+- TMDB API key (for movie and TV artwork)
 
 ---
 
-## SteamGridDB API
+## API Keys
 
-Artwork search functionality is powered by the **SteamGridDB API**.
-
-A valid API key is **required** to search for and retrieve game artwork.
-
-### Obtaining an API key
+### SteamGridDB
+Used for searching and retrieving game artwork.
 
 1. Create an account at https://www.steamgriddb.com
 2. Open your account settings
 3. Generate a personal API key
 
-The API key must be entered into the application when prompted or added to the configuration file.
+---
 
-Without a SteamGridDB API key, artwork search will not function.
+### TMDB (The Movie Database)
+Used for searching and retrieving movie and TV posters.
+
+1. Create an account at https://www.themoviedb.org
+2. Go to **Settings → API**
+3. Generate an API key
+
+API keys are requested by the application when needed and stored locally.
 
 ---
 
@@ -107,11 +170,11 @@ If Tkinter is missing, the application will fail to launch.
 On first launch, the application automatically creates a `config.json` file.
 
 Stored settings include:
-
 - Output directory
 - SteamGridDB API key
+- TMDB API key
 
-These settings persist between sessions, allowing the application to start with your previous configuration intact.
+These settings persist between sessions.
 
 ---
 
@@ -120,7 +183,7 @@ These settings persist between sessions, allowing the application to start with 
 - When an output folder is set, generated images are saved automatically
 - No save dialog is shown during normal operation
 - A confirmation message appears after saving and disappears after a few seconds
-- A **Go to output folder** button becomes available once a folder is configured
+- A **Open Output Folder** button becomes available once a folder is configured
 
 ---
 
