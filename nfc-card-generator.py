@@ -19,7 +19,6 @@ CONFIG_FILE = "config.json"
 CLEAR_W = 609
 CLEAR_H = 840
 
-# Template 4 / 5 exact clear area
 T4_POSTER_W = 619
 T4_POSTER_H = 834
 T4_POSTER_Y = 80
@@ -31,14 +30,12 @@ TEMPLATES = {
         "footer": {"height": 90, "logo_height": 46, "logo_margin": 25},
         "mode": "framed"
     },
-
     "Template 2": {
         "image_path": "templates/template_2.png",
         "center": {"x": 14, "y": 63, "w": 591, "h": 849},
         "footer": {"height": 90, "logo_height": 46, "logo_margin": 25},
         "mode": "framed"
     },
-
     "Template 3": {
         "image_path": "templates/template_3.png",
         "poster_y": 120,
@@ -50,24 +47,14 @@ TEMPLATES = {
         },
         "mode": "layered"
     },
-
-    # TEMPLATE 4 – FINAL (Color Scheme A)
     "Template 4": {
         "image_path": "templates/template_4.png",
-        "header_logo": {
-            "max_height": 62,
-            "top_margin": 10
-        },
+        "header_logo": {"max_height": 62, "top_margin": 10},
         "mode": "framed-top-logo"
     },
-
-    # TEMPLATE 5 – CLONE OF TEMPLATE 4 (Color Scheme B)
     "Template 5": {
         "image_path": "templates/template_5.png",
-        "header_logo": {
-            "max_height": 62,
-            "top_margin": 10
-        },
+        "header_logo": {"max_height": 62, "top_margin": 10},
         "mode": "framed-top-logo"
     }
 }
@@ -139,16 +126,31 @@ def get_grids(game_id):
 
 def cover_image(img, w, h):
     ratio = max(w / img.width, h / img.height)
-    resized = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
-    x = (resized.width - w) // 2
-    y = (resized.height - h) // 2
-    return resized.crop((x, y, x + w, y + h))
+    r = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+    x = (r.width - w) // 2
+    y = (r.height - h) // 2
+    return r.crop((x, y, x + w, y + h))
 
-def cover_image_top_aligned(img, w, h):
+def cover_image_top(img, w, h):
     ratio = max(w / img.width, h / img.height)
-    resized = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
-    x = (resized.width - w) // 2
-    return resized.crop((x, 0, x + w, h))
+    r = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+    x = (r.width - w) // 2
+    return r.crop((x, 0, x + w, h))
+
+def cover_image_bottom(img, w, h):
+    ratio = max(w / img.width, h / img.height)
+    r = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+    x = (r.width - w) // 2
+    y = r.height - h
+    return r.crop((x, y, x + w, y + h))
+
+def cover_image_manual(img, w, h, offset):
+    ratio = max(w / img.width, h / img.height)
+    r = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+    x = (r.width - w) // 2
+    max_y = r.height - h
+    y = max(0, min(max_y, int(offset)))
+    return r.crop((x, y, x + w, y + h))
 
 def fit_to_width(img, target_width):
     scale = target_width / img.width
@@ -167,7 +169,7 @@ def apply_header_logo(base, logo_path, cfg):
     h = cfg["header_logo"]
     scale = h["height"] / logo.height
     logo = logo.resize((int(logo.width * scale), h["height"]), Image.LANCZOS)
-    if logo.width > h.get("max_width", logo.width):
+    if logo.width > h["max_width"]:
         scale = h["max_width"] / logo.width
         logo = logo.resize((h["max_width"], int(logo.height * scale)), Image.LANCZOS)
     base.paste(logo, (h["left_margin"], h["top_margin"]), logo)
@@ -194,6 +196,9 @@ class App(tk.Tk):
         self.output_image = None
         self.output_dir = load_output_dir()
         self.template_var = tk.StringVar(value="Template 1")
+        self.crop_mode = tk.StringVar(value="center")
+        self.crop_offset = tk.IntVar(value=0)
+
         self.selected_poster_image = None
         self.current_game_title = None
 
@@ -243,10 +248,7 @@ class App(tk.Tk):
 
         for name, cfg in TEMPLATES.items():
             img = Image.open(cfg["image_path"])
-            img = img.resize(
-                (TEMPLATE_THUMB_W, int(TEMPLATE_THUMB_W * img.height / img.width)),
-                Image.LANCZOS
-            )
+            img = img.resize((TEMPLATE_THUMB_W, int(TEMPLATE_THUMB_W * img.height / img.width)), Image.LANCZOS)
             tk_img = ImageTk.PhotoImage(img)
             self.template_imgs[name] = tk_img
 
@@ -260,8 +262,37 @@ class App(tk.Tk):
                 command=self.render_with_current_template
             ).pack(side="left", padx=8)
 
+    def build_crop_controls(self):
+        frame = ttk.LabelFrame(self, text="Poster Crop Mode (Does not work with Template 3)")
+        frame.pack(pady=6)
+
+        for m in ("center", "top", "bottom", "manual"):
+            ttk.Radiobutton(
+                frame,
+                text=m.capitalize(),
+                value=m,
+                variable=self.crop_mode,
+                command=self.render_with_current_template
+            ).pack(side="left", padx=6)
+
+        self.crop_slider = ttk.Scale(
+            frame,
+            from_=0,
+            to=1000,
+            orient="horizontal",
+            variable=self.crop_offset,
+            command=lambda e: self.render_with_current_template()
+        )
+
+    def update_crop_ui(self):
+        if self.crop_mode.get() == "manual":
+            self.crop_slider.pack(fill="x", padx=10)
+        else:
+            self.crop_slider.pack_forget()
+
     def build_ui(self):
         self.build_template_selector()
+        self.build_crop_controls()
 
         controls = ttk.Frame(self)
         controls.pack(pady=5)
@@ -321,8 +352,20 @@ class App(tk.Tk):
     # -------- RENDER --------
 
     def render_with_current_template(self):
+        self.update_crop_ui()
+
         cfg = TEMPLATES[self.template_var.get()]
         template_img = Image.open(cfg["image_path"]).convert("RGBA")
+
+        def crop(img, w, h):
+            mode = self.crop_mode.get()
+            if mode == "top":
+                return cover_image_top(img, w, h)
+            if mode == "bottom":
+                return cover_image_bottom(img, w, h)
+            if mode == "manual":
+                return cover_image_manual(img, w, h, self.crop_offset.get())
+            return cover_image(img, w, h)
 
         if cfg["mode"] == "layered":
             base = Image.new("RGBA", template_img.size, (0, 0, 0, 0))
@@ -336,18 +379,12 @@ class App(tk.Tk):
 
         elif cfg["mode"] == "framed-top-logo":
             base = template_img.copy()
-
-            if self.logo_path:
-                apply_top_center_logo(base, self.logo_path, cfg)
-
             if self.selected_poster_image:
-                poster = cover_image_top_aligned(
-                    self.selected_poster_image,
-                    T4_POSTER_W,
-                    T4_POSTER_H
-                )
+                poster = crop(self.selected_poster_image, T4_POSTER_W, T4_POSTER_H)
                 x = (base.width - T4_POSTER_W) // 2
                 base.paste(poster, (x, T4_POSTER_Y), poster)
+            if self.logo_path:
+                apply_top_center_logo(base, self.logo_path, cfg)
 
         else:
             base = template_img.copy()
@@ -355,7 +392,7 @@ class App(tk.Tk):
                 apply_footer_logo(base, self.logo_path, cfg)
             if self.selected_poster_image:
                 c = cfg["center"]
-                poster = cover_image(self.selected_poster_image, c["w"], c["h"])
+                poster = crop(self.selected_poster_image, c["w"], c["h"])
                 base.paste(poster, (c["x"], c["y"]), poster)
 
         self.output_image = base
