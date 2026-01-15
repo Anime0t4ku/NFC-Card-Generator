@@ -19,7 +19,7 @@ CLEAR_W = 609
 CLEAR_H = 840
 
 T3_MAX_HEIGHT = 840
-T3_OVERFLOW_PAD = 120  # guarantees bottom fill for Template 3
+T3_OVERFLOW_PAD = 120
 
 T4_POSTER_W = 619
 T4_POSTER_H = 834
@@ -154,6 +154,29 @@ def cover_image_manual(img, w, h, offset):
     y = max(0, min(max_y, int(offset)))
     return r.crop((x, y, x + w, y + h))
 
+# --- HORIZONTAL HELPERS ---
+
+def cover_image_left(img, w, h):
+    ratio = max(w / img.width, h / img.height)
+    r = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+    y = (r.height - h) // 2
+    return r.crop((0, y, w, y + h))
+
+def cover_image_right(img, w, h):
+    ratio = max(w / img.width, h / img.height)
+    r = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+    y = (r.height - h) // 2
+    x = r.width - w
+    return r.crop((x, y, x + w, y + h))
+
+def cover_image_manual_x(img, w, h, offset):
+    ratio = max(w / img.width, h / img.height)
+    r = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+    y = (r.height - h) // 2
+    max_x = r.width - w
+    x = max(0, min(max_x, int(offset)))
+    return r.crop((x, y, x + w, y + h))
+
 def fit_to_width(img, target_width):
     scale = target_width / img.width
     return img.resize((target_width, int(img.height * scale)), Image.LANCZOS)
@@ -199,7 +222,7 @@ def apply_top_center_logo(base, logo_path, cfg):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("NFC Card Generator")
+        self.title("NFC Card Generator v1.3")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -212,6 +235,7 @@ class App(tk.Tk):
         self.crop_offset = tk.IntVar(value=0)
 
         self.selected_poster_image = None
+        self.poster_orientation = "vertical"
         self.current_game_title = None
 
         self.template_imgs = {}
@@ -220,25 +244,18 @@ class App(tk.Tk):
         self.status_after_id = None
 
         self.build_ui()
-        self.after(100, self.init_api_key)
 
         if self.output_dir and os.path.isdir(self.output_dir):
             self.show_open_folder_button()
 
-    # -------- API KEY --------
-
-    def init_api_key(self):
+    def ensure_api_key(self):
         global API_KEY
+        if API_KEY:
+            return True
         API_KEY = load_api_key()
-        while not API_KEY:
-            key = self.ask_api_key()
-            if not key:
-                self.destroy()
-                return
-            save_api_key(key)
-            API_KEY = key
+        if API_KEY:
+            return True
 
-    def ask_api_key(self):
         d = tk.Toplevel(self)
         d.title("SteamGridDB API Key")
         d.geometry("420x160")
@@ -250,8 +267,9 @@ class App(tk.Tk):
 
         ttk.Button(d, text="Save", command=lambda: (save_api_key(e.get()), d.destroy())).pack(pady=10)
         d.wait_window()
-        return load_api_key()
 
+        API_KEY = load_api_key()
+        return API_KEY is not None
     # -------- UI BUILD --------
 
     def build_template_selector(self):
@@ -313,6 +331,8 @@ class App(tk.Tk):
         controls.pack(pady=5)
 
         ttk.Button(controls, text="Upload System Logo", command=self.load_logo).pack(side="left", padx=5)
+        ttk.Button(controls, text="Upload Poster Image", command=self.load_local_poster).pack(side="left", padx=5)
+
         ttk.Label(controls, text="Game:").pack(side="left")
         self.game_entry = ttk.Entry(controls, width=30)
         self.game_entry.pack(side="left", padx=5)
@@ -366,6 +386,21 @@ class App(tk.Tk):
         self.status_label = ttk.Label(bottom, text="", foreground="green")
         self.status_label.pack(side="left", padx=15)
 
+    # -------- LOCAL POSTER --------
+
+    def load_local_poster(self):
+        p = filedialog.askopenfilename(
+            filetypes=[("Images", "*.png *.jpg *.jpeg *.webp")]
+        )
+        if not p:
+            return
+
+        img = Image.open(p).convert("RGBA")
+        self.selected_poster_image = img
+        self.poster_orientation = "horizontal" if img.width > img.height else "vertical"
+        self.current_game_title = os.path.splitext(os.path.basename(p))[0]
+        self.render_with_current_template()
+
     # -------- RENDER --------
 
     def render_with_current_template(self):
@@ -376,13 +411,23 @@ class App(tk.Tk):
 
         def crop(img, w, h):
             mode = self.crop_mode.get()
-            if mode == "top":
-                return cover_image_top(img, w, h)
-            if mode == "bottom":
-                return cover_image_bottom(img, w, h)
-            if mode == "manual":
-                return cover_image_manual(img, w, h, self.crop_offset.get())
-            return cover_image(img, w, h)
+
+            if self.poster_orientation == "horizontal":
+                if mode == "top":
+                    return cover_image_left(img, w, h)
+                if mode == "bottom":
+                    return cover_image_right(img, w, h)
+                if mode == "manual":
+                    return cover_image_manual_x(img, w, h, self.crop_offset.get())
+                return cover_image(img, w, h)
+            else:
+                if mode == "top":
+                    return cover_image_top(img, w, h)
+                if mode == "bottom":
+                    return cover_image_bottom(img, w, h)
+                if mode == "manual":
+                    return cover_image_manual(img, w, h, self.crop_offset.get())
+                return cover_image(img, w, h)
 
         if cfg["mode"] == "layered":
             base = Image.new("RGBA", template_img.size, (0, 0, 0, 0))
@@ -435,6 +480,7 @@ class App(tk.Tk):
         h = self.preview_label.winfo_height()
         if w <= 1 or h <= 1:
             return
+
         scale = min(w / base.width, h / base.height)
         img = base.resize(
             (int(base.width * scale), int(base.height * scale)),
@@ -446,6 +492,9 @@ class App(tk.Tk):
     # -------- STEAMGRIDDB --------
 
     def search(self):
+        if not self.ensure_api_key():
+            return
+
         if not self.logo_path:
             messagebox.showerror("Error", "Upload a system logo first")
             return
@@ -520,7 +569,9 @@ class App(tk.Tk):
         poster = Image.open(
             BytesIO(requests.get(grid["url"]).content)
         ).convert("RGBA")
+
         self.selected_poster_image = poster
+        self.poster_orientation = "horizontal" if poster.width > poster.height else "vertical"
         self.render_with_current_template()
 
     # -------- OUTPUT --------
@@ -598,6 +649,7 @@ class App(tk.Tk):
         if p:
             self.logo_path = p
             self.render_with_current_template()
+
 
 # ---------------- RUN ----------------
 
