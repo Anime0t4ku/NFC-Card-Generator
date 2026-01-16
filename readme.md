@@ -29,11 +29,11 @@ Mac and Linux users need to use the Python script (for now), see details below f
 
 ## Screenshots
 
-![NFC Card Generator Screenshot](NFC-Card-Generator/templates/screenshot.png)
+![NFC Card Generator Screenshot](.assets/screenshot.png)
 
 *Example showing game artwork.*
 
-![NFC Card Generator Screenshot 2](NFC-Card-Generator/templates/screenshot2.png)
+![NFC Card Generator Screenshot 2](.assets/screenshot2.png)
 
 *Example showing movie and TV artwork.*
 
