@@ -49,6 +49,7 @@ Mac and Linux users need to use the Python script (for now), see details below f
 - Manual crop adjustment when needed
 - Keyboard-friendly workflow (Enter to search, Enter to load URLs)
 - Persistent settings stored in `config.json`
+- Add custom icon pack
 
 ---
 
