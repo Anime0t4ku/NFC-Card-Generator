@@ -71,6 +71,8 @@ TEMPLATES = {
 
 THUMB_W = 160
 THUMB_H = 240
+ICON_THUMB_SIZE = 160
+ICON_PADDING = 16
 THUMBS_PER_ROW = 3
 TEMPLATE_THUMB_W = 140
 
@@ -118,6 +120,14 @@ def load_cache_web_images():
 def save_cache_web_images(value: bool):
     cfg = load_config()
     cfg["cache_web_images"] = value
+    save_config(cfg)
+
+def load_icon_pack_dir():
+    return load_config().get("icon_pack_directory")
+
+def save_icon_pack_dir(path):
+    cfg = load_config()
+    cfg["icon_pack_directory"] = path
     save_config(cfg)
 
 def headers():
@@ -199,7 +209,35 @@ def tmdb_get_posters(item):
 
     return r.json().get("posters", [])
 
+def search_system_icons(query, root):
+    results = []
+    q = query.lower()
+
+    for base, _, files in os.walk(root):
+        for f in files:
+            if not f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+                continue
+            if q in f.lower():
+                results.append(os.path.join(base, f))
+
+    return results
+
+
 # ---------------- IMAGE HELPERS ----------------
+
+def fit_inside(img, max_w, max_h):
+    scale = min(max_w / img.width, max_h / img.height)
+    new_w = int(img.width * scale)
+    new_h = int(img.height * scale)
+
+    resized = img.resize((new_w, new_h), Image.LANCZOS)
+
+    canvas = Image.new("RGBA", (max_w, max_h), (0, 0, 0, 0))
+    x = (max_w - new_w) // 2
+    y = (max_h - new_h) // 2
+    canvas.paste(resized, (x, y), resized)
+
+    return canvas
 
 def maybe_cache_web_image(img, url):
     if not load_cache_web_images():
@@ -334,12 +372,12 @@ class App(tk.Tk):
         super().__init__()
 
         # --- Window icon ---
-        icon_path = resource_path("icon.png")
+        icon_path = resource_path("Icon.png")
         if os.path.exists(icon_path):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v1.8.5 by Anime0t4ku")
+        self.title("NFC Card Generator v1.9 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -350,6 +388,7 @@ class App(tk.Tk):
 
         self.output_image = None
         self.output_dir = load_output_dir()
+        self.icon_pack_dir = load_icon_pack_dir()
 
         self.template_var = tk.StringVar(value="Template 1")
         self.crop_mode = tk.StringVar(value="center")
@@ -411,6 +450,50 @@ class App(tk.Tk):
             TMDB_API_KEY = key
 
         return key is not None
+
+    def build_source_controls(self, refresh=False):
+        if refresh and hasattr(self, "source_frame"):
+            self.source_frame.destroy()
+
+        self.source_frame = ttk.Frame(self.source_container)
+        self.source_frame.pack(side="left", padx=(6, 0))
+
+        ttk.Label(self.source_frame, text="Source:").pack(side="left", padx=(0, 4))
+
+        ttk.Radiobutton(
+            self.source_frame,
+            text="SteamGridDB",
+            variable=self.source_var,
+            value="steam"
+        ).pack(side="left")
+
+        ttk.Radiobutton(
+            self.source_frame,
+            text="TMDB",
+            variable=self.source_var,
+            value="tmdb"
+        ).pack(side="left")
+
+        if self.icon_pack_dir and os.path.isdir(self.icon_pack_dir):
+            ttk.Radiobutton(
+                self.source_frame,
+                text="System Icons",
+                variable=self.source_var,
+                value="system"
+            ).pack(side="left")
+
+    def choose_icon_pack_dir(self):
+        path = filedialog.askdirectory()
+        if not path:
+            return
+
+        self.icon_pack_dir = path
+        save_icon_pack_dir(path)
+
+        self.icon_pack_btn.config(text="Change System Icon Pack Folder")
+
+        self.build_source_controls(refresh=True)
+        self.show_status("System icon pack folder set")
 
     # -------- UI BUILD --------
 
@@ -478,8 +561,27 @@ class App(tk.Tk):
         self.build_template_selector()
         self.build_crop_controls()
 
-        controls = ttk.Frame(self)
-        controls.pack(pady=5)
+        controls_outer = ttk.Frame(self)
+        controls_outer.pack(pady=5, fill="x")
+
+        controls = ttk.Frame(controls_outer)
+        controls.pack(anchor="center")
+
+        self.controls = controls
+
+        # LEFT: menus
+        self.menu_frame = ttk.Frame(controls)
+        self.menu_frame.pack(side="left")
+
+        # MIDDLE: source selector
+        self.source_container = ttk.Frame(controls)
+        self.source_container.pack(side="left", padx=(10, 10))
+
+        # RIGHT: search + cache
+        self.search_container = ttk.Frame(controls)
+        self.search_container.pack(side="left")
+
+        self.build_source_controls()
 
         # --- System Logo menu ---
         logo_menu = tk.Menu(self, tearoff=0)
@@ -491,7 +593,7 @@ class App(tk.Tk):
             text="System Logo",
             menu=logo_menu
         )
-        logo_btn.pack(side="left", padx=5)
+        logo_btn.pack(in_=self.menu_frame, side="left", padx=5)
 
         # --- Poster Image menu ---
         poster_menu = tk.Menu(self, tearoff=0)
@@ -503,45 +605,30 @@ class App(tk.Tk):
             text="Poster",
             menu=poster_menu
         )
-        poster_btn.pack(side="left", padx=5)
+        poster_btn.pack(in_=self.menu_frame, side="left", padx=5)
 
-        ttk.Label(controls, text="Source:").pack(side="left", padx=(0, 4))
+        ttk.Label(self.search_container, text="Search:").pack(side="left")
 
-        ttk.Radiobutton(
-            controls,
-            text="SteamGridDB",
-            variable=self.source_var,
-            value="steam"
-        ).pack(side="left")
-
-        ttk.Radiobutton(
-            controls,
-            text="TMDB",
-            variable=self.source_var,
-            value="tmdb"
-        ).pack(side="left", padx=(0, 10))
-
-        ttk.Label(controls, text="Search:").pack(side="left")
-        self.game_entry = ttk.Entry(controls, width=30)
+        self.game_entry = ttk.Entry(self.search_container, width=30)
         self.game_entry.pack(side="left", padx=5)
 
-        self.game_entry.bind(
-            "<Return>",
-            lambda e: self.search()
-        )
-
         ttk.Button(
-            controls,
+            self.search_container,
             text="Search",
             command=self.search
-        ).pack(side="left")
+        ).pack(side="left", padx=(0, 8))
 
         ttk.Checkbutton(
-            controls,
+            self.search_container,
             text="Cache URL images",
             variable=self.cache_web_images,
             command=lambda: save_cache_web_images(self.cache_web_images.get())
-        ).pack(side="left", padx=(10, 0))
+        ).pack(side="left")
+
+        ttk.Separator(
+            self.source_container,
+            orient="vertical"
+        ).pack(side="right", fill="y", padx=8)
 
         main = ttk.Frame(self)
         main.pack(fill="both", expand=True)
@@ -602,7 +689,27 @@ class App(tk.Tk):
         bottom = ttk.Frame(main)
         bottom.grid(row=1, column=0, columnspan=3, pady=10)
 
-        ttk.Button(bottom, text="Set Output Folder", command=self.choose_output_dir).pack(side="left", padx=10)
+        self.output_dir_btn = ttk.Button(
+            bottom,
+            text="Set Output Folder",
+            command=self.choose_output_dir
+        )
+        self.output_dir_btn.pack(side="left", padx=10)
+
+        self.icon_pack_btn = ttk.Button(
+            bottom,
+            text="Set System Icon Pack Folder",
+            command=self.choose_icon_pack_dir
+        )
+        self.icon_pack_btn.pack(side="left", padx=10)
+
+        # --- Update button labels based on saved state ---
+        if self.output_dir:
+            self.output_dir_btn.config(text="Change Output Folder")
+
+        if self.icon_pack_dir:
+            self.icon_pack_btn.config(text="Change System Icon Pack Folder")
+
         self.open_folder_btn = ttk.Button(bottom, text="Open Output Folder", command=self.open_output_dir)
         ttk.Button(bottom, text="Save Image", command=self.save).pack(side="left")
 
@@ -724,6 +831,19 @@ class App(tk.Tk):
         if not query:
             return
 
+        if self.source_var.get() == "system":
+            if not self.icon_pack_dir:
+                return
+
+            self.show_loading()
+
+            threading.Thread(
+                target=self.fetch_system_icons_thread,
+                args=(query,),
+                daemon=True
+            ).start()
+            return
+
         # SteamGridDB (default)
         if not hasattr(self, "source_var") or self.source_var.get() == "steam":
             if not self.ensure_api_key("steamgriddb"):
@@ -816,8 +936,26 @@ class App(tk.Tk):
 
         i = len(self.thumb_imgs)
         img = Image.open(BytesIO(data)).convert("RGBA")
-        img = img.resize((THUMB_W, THUMB_H), Image.LANCZOS)
-        tk_img = ImageTk.PhotoImage(img)
+
+        max_size = ICON_THUMB_SIZE - ICON_PADDING * 2
+        scale = min(max_size / img.width, max_size / img.height)
+        img = img.resize(
+            (int(img.width * scale), int(img.height * scale)),
+            Image.LANCZOS
+        )
+
+        canvas = Image.new(
+            "RGBA",
+            (ICON_THUMB_SIZE, ICON_THUMB_SIZE),
+            (0, 0, 0, 0)
+        )
+
+        x = (ICON_THUMB_SIZE - img.width) // 2
+        y = (ICON_THUMB_SIZE - img.height) // 2
+        canvas.paste(img, (x, y), img)
+
+        tk_img = ImageTk.PhotoImage(canvas)
+
         self.thumb_imgs.append(tk_img)
 
         ttk.Button(
@@ -930,6 +1068,59 @@ class App(tk.Tk):
         self.update_crop_labels()
         self.render_with_current_template()
 
+    def fetch_system_icons_thread(self, query):
+        icons = search_system_icons(query, self.icon_pack_dir)
+
+        for icon_path in icons:
+            try:
+                with open(icon_path, "rb") as f:
+                    data = f.read()
+
+                self.after(
+                    0,
+                    lambda d=data, p=icon_path: self.add_system_icon_thumb(d, p)
+                )
+            except Exception:
+                pass
+
+        self.after(150, self.finish_thumb_load)
+
+    def add_system_icon_thumb(self, data, path):
+        self.placeholder_label.grid_forget()
+
+        i = len(self.thumb_imgs)
+        img = Image.open(BytesIO(data)).convert("RGBA")
+        img = fit_inside(img, THUMB_W, THUMB_H)
+        tk_img = ImageTk.PhotoImage(img)
+        self.thumb_imgs.append(tk_img)
+
+        ttk.Button(
+            self.thumb_frame,
+            image=tk_img,
+            command=lambda p=path: self.apply_system_icon(p)
+        ).grid(
+            row=(i // THUMBS_PER_ROW) + 1,
+            column=i % THUMBS_PER_ROW,
+            padx=5,
+            pady=5
+        )
+
+    def apply_system_icon(self, path):
+        self.logo_image = Image.open(path).convert("RGBA")
+        self.logo_path = None
+        self.render_with_current_template()
+
+    def finish_thumb_load(self):
+        self.loading_label.grid_forget()
+
+        if not self.thumb_imgs:
+            self.placeholder_label.grid(
+                row=0,
+                column=0,
+                columnspan=THUMBS_PER_ROW,
+                pady=30
+            )
+
     # -------- OUTPUT --------
 
     def show_open_folder_button(self):
@@ -941,6 +1132,9 @@ class App(tk.Tk):
         if path:
             self.output_dir = path
             save_output_dir(path)
+
+            self.output_dir_btn.config(text="Change Output Folder")
+
             self.show_open_folder_button()
             self.show_status("Output folder set")
 
@@ -1068,7 +1262,6 @@ class App(tk.Tk):
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load poster:\n{e}")
-
 
 # ---------------- RUN ----------------
 
