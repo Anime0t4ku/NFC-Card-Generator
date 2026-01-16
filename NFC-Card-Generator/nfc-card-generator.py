@@ -377,7 +377,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v1.9.2 by Anime0t4ku")
+        self.title("NFC Card Generator v1.9.3 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -403,6 +403,7 @@ class App(tk.Tk):
         self.thumb_imgs = []
         self.preview_image = None
         self.status_after_id = None
+        self.search_id = 0
 
         self.build_ui()
 
@@ -494,6 +495,17 @@ class App(tk.Tk):
 
         self.build_source_controls(refresh=True)
         self.show_status("System icon pack folder set")
+
+    def _on_mousewheel(self, event):
+        if sys.platform.startswith("win"):
+            self.canvas.yview_scroll(-1 * int(event.delta / 120), "units")
+        elif sys.platform == "darwin":
+            self.canvas.yview_scroll(-1 * int(event.delta), "units")
+        else:
+            if event.num == 4:
+                self.canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                self.canvas.yview_scroll(1, "units")
 
     # -------- UI BUILD --------
 
@@ -649,9 +661,16 @@ class App(tk.Tk):
         sb = ttk.Scrollbar(selector_container, orient="vertical", command=self.canvas.yview)
         sb.pack(side="left", fill="y")
         self.canvas.configure(yscrollcommand=sb.set)
+        # Global mouse wheel scrolling for thumbnail canvas
+        if sys.platform.startswith("linux"):
+            self.bind_all("<Button-4>", self._on_mousewheel)
+            self.bind_all("<Button-5>", self._on_mousewheel)
+        else:
+            self.bind_all("<MouseWheel>", self._on_mousewheel)
 
         self.thumb_frame = ttk.Frame(self.canvas)
         self.canvas.create_window((260, 0), window=self.thumb_frame, anchor="n")
+
         self.thumb_frame.bind(
             "<Configure>",
             lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
@@ -834,6 +853,10 @@ class App(tk.Tk):
         if not query:
             return
 
+        # invalidate previous searches
+        self.search_id += 1
+        current_search_id = self.search_id
+
         if self.source_var.get() == "system":
             if not self.icon_pack_dir:
                 return
@@ -842,7 +865,7 @@ class App(tk.Tk):
 
             threading.Thread(
                 target=self.fetch_system_icons_thread,
-                args=(query,),
+                args=(query, current_search_id),
                 daemon=True
             ).start()
             return
@@ -862,7 +885,7 @@ class App(tk.Tk):
 
             threading.Thread(
                 target=self.fetch_steam_thumbs_thread,
-                args=(game["id"],),
+                args=(game["id"], current_search_id),
                 daemon=True
             ).start()
 
@@ -885,7 +908,7 @@ class App(tk.Tk):
 
             threading.Thread(
                 target=self.fetch_tmdb_thumb_thread,
-                args=(item,),
+                args=(item, current_search_id),
                 daemon=True
             ).start()
 
@@ -907,11 +930,13 @@ class App(tk.Tk):
 
     # -------- STEAMGRIDDB THUMBS --------
 
-    def fetch_steam_thumbs_thread(self, game_id):
+    def fetch_steam_thumbs_thread(self, game_id, search_id):
         grids = get_grids(game_id)
         vertical = [g for g in grids if g["width"] < g["height"]]
 
         for grid in vertical:
+            if search_id != self.search_id:
+                return
             try:
                 r = requests.get(grid["url"], timeout=10)
                 r.raise_for_status()
@@ -996,11 +1021,14 @@ class App(tk.Tk):
         d.wait_window()
         return result["item"]
 
-    def fetch_tmdb_thumb_thread(self, item):
+    def fetch_tmdb_thumb_thread(self, item, search_id):
         try:
             posters = tmdb_get_posters(item)
 
             for poster in posters:
+                if search_id != self.search_id:
+                    return
+
                 path = poster.get("file_path")
                 if not path:
                     continue
@@ -1056,10 +1084,13 @@ class App(tk.Tk):
         self.update_crop_labels()
         self.render_with_current_template()
 
-    def fetch_system_icons_thread(self, query):
+    def fetch_system_icons_thread(self, query, search_id):
         icons = search_system_icons(query, self.icon_pack_dir)
 
         for icon_path in icons:
+            if search_id != self.search_id:
+                return
+
             try:
                 with open(icon_path, "rb") as f:
                     data = f.read()
@@ -1078,7 +1109,10 @@ class App(tk.Tk):
 
         i = len(self.thumb_imgs)
         img = Image.open(BytesIO(data)).convert("RGBA")
-        img = fit_inside(img, THUMB_W, THUMB_H)
+
+        # Square system icon thumbnails
+        img = fit_inside(img, ICON_THUMB_SIZE, ICON_THUMB_SIZE)
+
         tk_img = ImageTk.PhotoImage(img)
         self.thumb_imgs.append(tk_img)
 
