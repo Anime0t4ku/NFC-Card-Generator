@@ -5,7 +5,7 @@ It supports **games, movies, and TV shows**, allowing you to browse, preview, an
 
 The tool is designed around **repeatability, flexibility, and a keyboard-friendly workflow**, making it ideal for physical NFC card projects, retro collections, and media-based launch or display systems.
 ---
-**Windows users can download the executable from the latest nightly build below, Mac and Linux users need to use the python script (for now) see details below for requirements.
+## Windows users can download the executable from the latest nightly build below, Mac and Linux users need to use the python script (for now) see details below for requirements.
 ---
 
 ## Nightly builds
