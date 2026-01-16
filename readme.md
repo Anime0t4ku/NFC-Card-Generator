@@ -6,7 +6,7 @@ The tool is designed around **repeatability, flexibility, and a keyboard-friendl
 
 ---
 
-Windows users can download the executable from the latest nightly build below.  
+Windows users can download the executable from the latest stable release or download the nightly build below.  
 Mac and Linux users need to use the Python script (for now), see details below for requirements.
 
 ---
