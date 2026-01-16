@@ -29,11 +29,6 @@ jobs:
           pyinstaller nfc-card-generator.py --onefile --noconsole --add-data "templates;templates"
         working-directory: NFC-Card-Generator
 
-      - name: Copy templates folder to dist
-        run: |
-          cp -r templates dist/templates
-        working-directory: NFC-Card-Generator
-
       - name: Upload NFC-Card-Generator artifact
         uses: actions/upload-artifact@v6
         with:
