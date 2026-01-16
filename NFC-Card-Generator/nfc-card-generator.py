@@ -334,7 +334,7 @@ class App(tk.Tk):
         super().__init__()
 
         # --- Window icon ---
-        icon_path = resource_path("Icon.png")
+        icon_path = resource_path("icon.png")
         if os.path.exists(icon_path):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
