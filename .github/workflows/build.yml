@@ -54,7 +54,7 @@ jobs:
       - name: Re-ZIP artifacts
         run: |
           cd dist
-          zip -r ../NFC-Card-Generator.zip *
+          zip -r ../NFC-Card-Generator-Windows-x86_64.zip *
 
       - name: Update Git Tag
         run: |
@@ -68,4 +68,4 @@ jobs:
           allowUpdates: true
           removeArtifacts: true
           tag: Pre-release
-          artifacts: "NFC-Card-Generator.zip"
+          artifacts: "NFC-Card-Generator-Windows-x86_64.zip"

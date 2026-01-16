@@ -23,7 +23,7 @@ Mac and Linux users need to use the Python script (for now), see details below f
 [Actions]: https://github.com/Anime0t4ku/NFC-Card-Generator/actions/workflows/build.yml
 [Build]: https://github.com/Anime0t4ku/NFC-Card-Generator/actions/workflows/build.yml/badge.svg
 [Download]: https://img.shields.io/badge/Download-blue
-[NFC Card Generator]: https://github.com/Anime0t4ku/NFC-Card-Generator/releases/download/Pre-release/NFC-Card-Generator.zip
+[NFC Card Generator]: https://github.com/Anime0t4ku/NFC-Card-Generator/releases/download/Pre-release/NFC-Card-Generator-Windows-x86_64.zip
 
 ---
 
