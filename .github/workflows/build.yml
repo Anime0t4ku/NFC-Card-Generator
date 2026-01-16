@@ -24,12 +24,12 @@ jobs:
           pip install -r requirements.txt
 
       - name: Build NFC Card Generator executable
-        run: >
-          PyInstaller nfc-card-generator.py
-            --onefile
-            --noconsole
-            --icon app.ico
-            --add-data "templates;templates"
+        run: |
+          pyinstaller nfc-card-generator.py `
+            --onefile `
+            --noconsole `
+            --icon app.ico `
+            --add-data "templates;templates" `
             --add-data "icon.png;."
         working-directory: NFC-Card-Generator
 
