@@ -332,9 +332,17 @@ def apply_top_center_logo(base, logo, cfg):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("NFC Card Generator v1.8.4 by Anime0t4ku")
+
+        # --- Window icon ---
+        icon_path = resource_path("Icon.png")
+        if os.path.exists(icon_path):
+            self._window_icon = tk.PhotoImage(file=icon_path)
+            self.iconphoto(True, self._window_icon)
+
+        self.title("NFC Card Generator v1.8.5 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
+
 
         self.logo_path = None
         self.logo_image = None
