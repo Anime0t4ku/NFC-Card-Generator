@@ -2,6 +2,9 @@ name: NFC-Card-Generator
 
 on: [push, pull_request]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build
@@ -63,8 +66,6 @@ jobs:
         run: |
           git tag -f Pre-release
           git push -f origin Pre-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
 
       - name: Create Release
         uses: ncipollo/release-action@v1
