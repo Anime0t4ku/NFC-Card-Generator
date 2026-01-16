@@ -1,5 +1,5 @@
 import requests
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 from io import BytesIO
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -66,6 +66,12 @@ TEMPLATES = {
         "image_path": "templates/template_5.png",
         "header_logo": {"max_height": 62, "top_margin": 10},
         "mode": "framed-top-logo"
+    },
+    "Template 6": {
+        "image_path": "templates/template_6.png",
+        "size": {"w": 619, "h": 994},
+        "corner_radius": 22,
+        "mode": "full-poster-rounded"
     }
 }
 
@@ -296,6 +302,20 @@ def cover_image_manual(img, w, h, offset):
     y = max(0, min(max_y, int(offset)))
     return r.crop((x, y, x + w, y + h))
 
+def apply_rounded_corners(img, radius):
+    mask = Image.new("L", img.size, 0)
+    draw = ImageDraw.Draw(mask)
+
+    draw.rounded_rectangle(
+        (0, 0, img.width, img.height),
+        radius=radius,
+        fill=255
+    )
+
+    out = Image.new("RGBA", img.size)
+    out.paste(img, (0, 0), mask)
+    return out
+
 # --- HORIZONTAL HELPERS ---
 
 def cover_image_left(img, w, h):
@@ -377,7 +397,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v1.9.3 by Anime0t4ku")
+        self.title("NFC Card Generator v2.0-beta by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -764,7 +784,6 @@ class App(tk.Tk):
             self.crop_slider.pack_forget()
 
         cfg = TEMPLATES[self.template_var.get()]
-        template_img = Image.open(resource_path(cfg["image_path"])).convert("RGBA")
 
         def crop(img, w, h):
             mode = self.crop_mode.get()
@@ -785,6 +804,25 @@ class App(tk.Tk):
                 if mode == "manual":
                     return cover_image_manual(img, w, h, self.crop_offset.get())
                 return cover_image(img, w, h)
+
+        # Template 6 – full poster with rounded corners (no base template, no logo)
+        if cfg.get("mode") == "full-poster-rounded":
+            if not self.selected_poster_image:
+                return
+
+            w = cfg["size"]["w"]
+            h = cfg["size"]["h"]
+
+            poster = crop(self.selected_poster_image, w, h)
+            poster = apply_rounded_corners(
+                poster,
+                cfg.get("corner_radius", 24)
+            )
+
+            self.output_image = poster
+            self.update_preview(poster)
+            return
+        template_img = Image.open(resource_path(cfg["image_path"])).convert("RGBA")
 
         if cfg["mode"] == "layered":
             base = Image.new("RGBA", template_img.size, (0, 0, 0, 0))
