@@ -11,9 +11,9 @@ The tool is designed around **repeatability, flexibility, and a keyboard-friendl
 
 ### Download the latest builds from continuous integration:
 
-| Name                    | Status                            | File                                        |
-|-------------------------|-----------------------------------|---------------------------------------------|
-| NFC Card Generator      | [![Build Status][Build]][Actions] | [![Emulator][Download]][NFC Card Generator] |
+| Name                    | Platform | Status                            | File                                        |
+|-------------------------|----------|-----------------------------------|---------------------------------------------|
+| NFC Card Generator      | Windows  | [![Build Status][Build]][Actions] | [![Emulator][Download]][NFC Card Generator] |
 
 [Actions]: https://github.com/Anime0t4ku/NFC-Card-Generator/actions/workflows/build.yml
 [Build]: https://github.com/Anime0t4ku/NFC-Card-Generator/actions/workflows/build.yml/badge.svg
