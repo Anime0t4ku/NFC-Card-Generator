@@ -28,10 +28,46 @@ jobs:
 
       - name: Copy templates folder to dist
         run: |
-         cp -r templates NFC-Card-Generator/dist/templates
+          cp -r templates dist/templates
+        working-directory: NFC-Card-Generator
 
       - name: Upload NFC-Card-Generator artifact
         uses: actions/upload-artifact@v6
         with:
           name: NFC-Card-Generator
           path: NFC-Card-Generator/dist
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Re-ZIP artifacts
+        run: |
+          cd dist
+          zip -r ../NFC-Card-Generator.zip *
+
+      - name: Update Git Tag
+        run: |
+          git tag -f Pre-release
+          git push -f origin Pre-release
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          prerelease: true
+          allowUpdates: true
+          removeArtifacts: true
+          tag: Pre-release
+          artifacts: "NFC-Card-Generator.zip"
