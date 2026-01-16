@@ -25,12 +25,7 @@ jobs:
 
       - name: Build NFC Card Generator executable
         run: |
-          pyinstaller --clean nfc-card-generator.py `
-            --onefile `
-            --noconsole `
-            --icon "../assets/icon.ico" `
-            --add-data "../assets/icon.png;." `
-            --add-data "../assets/templates;templates"
+          pyinstaller --clean nfc-card-generator.py --onefile --noconsole --icon app.ico --add-data "icon.png;." --add-data "templates;templates"
         working-directory: NFC-Card-Generator
 
       - name: Upload NFC-Card-Generator artifact
