@@ -332,7 +332,7 @@ def apply_top_center_logo(base, logo, cfg):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("NFC Card Generator v1.8.3 by Anime0t4ku")
+        self.title("NFC Card Generator v1.8.4 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -476,7 +476,7 @@ class App(tk.Tk):
         # --- System Logo menu ---
         logo_menu = tk.Menu(self, tearoff=0)
         logo_menu.add_command(label="Import from file", command=self.load_logo)
-        logo_menu.add_command(label="Load from URL", command=self.load_logo_from_url)
+        logo_menu.add_command(label="Import from URL", command=self.load_logo_from_url)
 
         logo_btn = ttk.Menubutton(
             controls,
@@ -488,7 +488,7 @@ class App(tk.Tk):
         # --- Poster Image menu ---
         poster_menu = tk.Menu(self, tearoff=0)
         poster_menu.add_command(label="Import from file", command=self.load_local_poster)
-        poster_menu.add_command(label="Load from URL", command=self.load_poster_from_url)
+        poster_menu.add_command(label="Import from URL", command=self.load_poster_from_url)
 
         poster_btn = ttk.Menubutton(
             controls,
