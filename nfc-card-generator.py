@@ -324,7 +324,7 @@ def apply_top_center_logo(base, logo, cfg):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("NFC Card Generator v1.8")
+        self.title("NFC Card Generator v1.8.3 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -425,14 +425,18 @@ class App(tk.Tk):
         frame = ttk.LabelFrame(self, text="Poster Crop Mode")
         frame.pack(pady=6)
 
+        self.crop_buttons = {}
+
         for m in ("center", "top", "bottom", "manual"):
-            ttk.Radiobutton(
+            btn = ttk.Radiobutton(
                 frame,
                 text=m.capitalize(),
                 value=m,
                 variable=self.crop_mode,
                 command=self.render_with_current_template
-            ).pack(side="left", padx=6)
+            )
+            btn.pack(side="left", padx=6)
+            self.crop_buttons[m] = btn
 
         self.crop_slider = ttk.Scale(
             frame,
@@ -443,11 +447,16 @@ class App(tk.Tk):
             command=lambda e: self.render_with_current_template()
         )
 
-    def update_crop_ui(self):
-        if self.crop_mode.get() == "manual":
-            self.crop_slider.pack(fill="x", padx=10)
+    def update_crop_labels(self):
+        if not hasattr(self, "crop_buttons"):
+            return
+
+        if self.poster_orientation == "horizontal":
+            self.crop_buttons["top"].config(text="Left")
+            self.crop_buttons["bottom"].config(text="Right")
         else:
-            self.crop_slider.pack_forget()
+            self.crop_buttons["top"].config(text="Top")
+            self.crop_buttons["bottom"].config(text="Bottom")
 
     def build_ui(self):
         self.build_template_selector()
@@ -456,11 +465,29 @@ class App(tk.Tk):
         controls = ttk.Frame(self)
         controls.pack(pady=5)
 
-        ttk.Button(controls, text="Import System Logo", command=self.load_logo).pack(side="left", padx=5)
-        ttk.Button(controls, text="Logo from URL", command=self.load_logo_from_url).pack(side="left", padx=5)
+        # --- System Logo menu ---
+        logo_menu = tk.Menu(self, tearoff=0)
+        logo_menu.add_command(label="Import from file", command=self.load_logo)
+        logo_menu.add_command(label="Load from URL", command=self.load_logo_from_url)
 
-        ttk.Button(controls, text="Import Poster Image", command=self.load_local_poster).pack(side="left", padx=5)
-        ttk.Button(controls, text="Poster from URL", command=self.load_poster_from_url).pack(side="left", padx=5)
+        logo_btn = ttk.Menubutton(
+            controls,
+            text="System Logo",
+            menu=logo_menu
+        )
+        logo_btn.pack(side="left", padx=5)
+
+        # --- Poster Image menu ---
+        poster_menu = tk.Menu(self, tearoff=0)
+        poster_menu.add_command(label="Import from file", command=self.load_local_poster)
+        poster_menu.add_command(label="Load from URL", command=self.load_poster_from_url)
+
+        poster_btn = ttk.Menubutton(
+            controls,
+            text="Poster",
+            menu=poster_menu
+        )
+        poster_btn.pack(side="left", padx=5)
 
         ttk.Label(controls, text="Source:").pack(side="left", padx=(0, 4))
 
@@ -481,6 +508,11 @@ class App(tk.Tk):
         ttk.Label(controls, text="Search:").pack(side="left")
         self.game_entry = ttk.Entry(controls, width=30)
         self.game_entry.pack(side="left", padx=5)
+
+        self.game_entry.bind(
+            "<Return>",
+            lambda e: self.search()
+        )
 
         ttk.Button(
             controls,
@@ -519,7 +551,25 @@ class App(tk.Tk):
             lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
 
-        self.loading_label = ttk.Label(self.thumb_frame, text="Loading images…", foreground="gray")
+        self.loading_label = ttk.Label(
+            self.thumb_frame,
+            text="Loading images…",
+            foreground="gray"
+        )
+
+        self.placeholder_label = ttk.Label(
+            self.thumb_frame,
+            text="Search for a game, movie or TV show to load posters\nor use “Poster ▼” to add your own image",
+            foreground="gray",
+            justify="center"
+        )
+
+        self.placeholder_label.grid(
+            row=0,
+            column=0,
+            columnspan=THUMBS_PER_ROW,
+            pady=30
+        )
 
         preview = ttk.Frame(main)
         preview.grid(row=0, column=2, padx=40, sticky="nsew")
@@ -555,13 +605,18 @@ class App(tk.Tk):
         img = Image.open(p).convert("RGBA")
         self.selected_poster_image = img
         self.poster_orientation = "horizontal" if img.width > img.height else "vertical"
+        self.update_crop_labels()
         self.current_game_title = os.path.splitext(os.path.basename(p))[0]
         self.render_with_current_template()
 
     # -------- RENDER --------
 
     def render_with_current_template(self):
-        self.update_crop_ui()
+
+        if self.crop_mode.get() == "manual":
+            self.crop_slider.pack(fill="x", padx=10)
+        else:
+            self.crop_slider.pack_forget()
 
         cfg = TEMPLATES[self.template_var.get()]
         template_img = Image.open(cfg["image_path"]).convert("RGBA")
@@ -653,10 +708,6 @@ class App(tk.Tk):
         if not query:
             return
 
-        if not (self.logo_image or self.logo_path):
-            messagebox.showerror("Error", "Upload a system logo first")
-            return
-
         # SteamGridDB (default)
         if not hasattr(self, "source_var") or self.source_var.get() == "steam":
             if not self.ensure_api_key("steamgriddb"):
@@ -701,10 +752,13 @@ class App(tk.Tk):
 
     def show_loading(self):
         for w in self.thumb_frame.winfo_children():
-            if w is not self.loading_label:
+            if w not in (self.loading_label, self.placeholder_label):
                 w.destroy()
+
+        self.placeholder_label.grid_forget()
         self.thumb_imgs.clear()
         self.canvas.yview_moveto(0)
+
         self.loading_label.grid(
             row=0,
             column=0,
@@ -729,9 +783,21 @@ class App(tk.Tk):
             except Exception:
                 pass
 
-        self.after(150, self.loading_label.grid_forget)
+        def finish():
+            self.loading_label.grid_forget()
+            if not self.thumb_imgs:
+                self.placeholder_label.grid(
+                    row=0,
+                    column=0,
+                    columnspan=THUMBS_PER_ROW,
+                    pady=30
+                )
+
+        self.after(150, finish)
 
     def add_steam_thumb_from_data(self, grid, data):
+        self.placeholder_label.grid_forget()
+
         i = len(self.thumb_imgs)
         img = Image.open(BytesIO(data)).convert("RGBA")
         img = img.resize((THUMB_W, THUMB_H), Image.LANCZOS)
@@ -756,6 +822,7 @@ class App(tk.Tk):
 
         self.selected_poster_image = poster
         self.poster_orientation = "horizontal" if poster.width > poster.height else "vertical"
+        self.update_crop_labels()
         self.render_with_current_template()
 
     # -------- TMDB THUMBS --------
@@ -808,9 +875,21 @@ class App(tk.Tk):
         except Exception:
             pass
 
-        self.after(150, self.loading_label.grid_forget)
+        def finish():
+            self.loading_label.grid_forget()
+            if not self.thumb_imgs:
+                self.placeholder_label.grid(
+                    row=0,
+                    column=0,
+                    columnspan=THUMBS_PER_ROW,
+                    pady=30
+                )
+
+        self.after(150, finish)
 
     def add_tmdb_thumb_from_data(self, data):
+        self.placeholder_label.grid_forget()
+
         i = len(self.thumb_imgs)
         img = Image.open(BytesIO(data)).convert("RGBA")
         img = img.resize((THUMB_W, THUMB_H), Image.LANCZOS)
@@ -832,6 +911,7 @@ class App(tk.Tk):
         poster = Image.open(BytesIO(data)).convert("RGBA")
         self.selected_poster_image = poster
         self.poster_orientation = "vertical"
+        self.update_crop_labels()
         self.render_with_current_template()
 
     # -------- OUTPUT --------
@@ -926,9 +1006,11 @@ class App(tk.Tk):
 
         result = {"url": None}
 
-        def confirm():
+        def confirm(event=None):
             result["url"] = url_var.get().strip()
             d.destroy()
+
+        e.bind("<Return>", confirm)
 
         ttk.Button(d, text="Load", command=confirm).pack(pady=10)
 
@@ -959,12 +1041,14 @@ class App(tk.Tk):
             self.poster_orientation = (
                 "horizontal" if img.width > img.height else "vertical"
             )
+            self.update_crop_labels()
 
             self.current_game_title = os.path.splitext(
                 os.path.basename(url.split("?")[0])
             )[0]
 
             self.render_with_current_template()
+
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load poster:\n{e}")
