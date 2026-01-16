@@ -11,6 +11,14 @@ import subprocess
 import re
 from datetime import datetime
 
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 # ---------------- CONFIG ----------------
 
 CONFIG_FILE = "config.json"
@@ -403,7 +411,7 @@ class App(tk.Tk):
         frame.pack(pady=10)
 
         for name, cfg in TEMPLATES.items():
-            img = Image.open(cfg["image_path"])
+            img = Image.open(resource_path(cfg["image_path"]))
             img = img.resize(
                 (TEMPLATE_THUMB_W, int(TEMPLATE_THUMB_W * img.height / img.width)),
                 Image.LANCZOS
@@ -619,7 +627,7 @@ class App(tk.Tk):
             self.crop_slider.pack_forget()
 
         cfg = TEMPLATES[self.template_var.get()]
-        template_img = Image.open(cfg["image_path"]).convert("RGBA")
+        template_img = Image.open(resource_path(cfg["image_path"])).convert("RGBA")
 
         def crop(img, w, h):
             mode = self.crop_mode.get()
