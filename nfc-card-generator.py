@@ -72,6 +72,8 @@ PREVIEW_MIN_H = 520
 API_KEY = None        # SteamGridDB
 TMDB_API_KEY = None   # TMDB
 TMDB_IMG_BASE = "https://image.tmdb.org/t/p/original"
+WEB_IMAGE_DIR = "web-images"
+
 
 # ---------------- CONFIG HELPERS ----------------
 
@@ -100,6 +102,14 @@ def load_output_dir():
 def save_output_dir(path):
     cfg = load_config()
     cfg["output_directory"] = path
+    save_config(cfg)
+
+def load_cache_web_images():
+    return load_config().get("cache_web_images", False)
+
+def save_cache_web_images(value: bool):
+    cfg = load_config()
+    cfg["cache_web_images"] = value
     save_config(cfg)
 
 def headers():
@@ -183,6 +193,35 @@ def tmdb_get_posters(item):
 
 # ---------------- IMAGE HELPERS ----------------
 
+def maybe_cache_web_image(img, url):
+    if not load_cache_web_images():
+        return img
+
+    os.makedirs(WEB_IMAGE_DIR, exist_ok=True)
+
+    name = os.path.basename(url.split("?")[0])
+    if not name.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+        name += ".png"
+
+    path = os.path.join(WEB_IMAGE_DIR, name)
+
+    try:
+        img.save(path)
+    except Exception:
+        pass
+
+    return img
+
+def load_image_from_url(url, timeout=10):
+    if not url.lower().startswith(("http://", "https://")):
+        raise ValueError("Only http(s) URLs are supported")
+
+    r = requests.get(url, timeout=timeout)
+    r.raise_for_status()
+
+    img = Image.open(BytesIO(r.content)).convert("RGBA")
+    return maybe_cache_web_image(img, url)
+
 def cover_image(img, w, h):
     ratio = max(w / img.width, h / img.height)
     r = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
@@ -247,16 +286,20 @@ def force_vertical_overflow(img, min_height):
         Image.LANCZOS
     )
 
-def apply_footer_logo(base, logo_path, cfg):
-    logo = Image.open(logo_path).convert("RGBA")
+def apply_footer_logo(base, logo, cfg):
+    if isinstance(logo, str):
+        logo = Image.open(logo).convert("RGBA")
+
     f = cfg["footer"]
     scale = f["logo_height"] / logo.height
     logo = logo.resize((int(logo.width * scale), f["logo_height"]), Image.LANCZOS)
     y = base.height - f["height"] + (f["height"] - logo.height) // 2
     base.paste(logo, (f["logo_margin"], y), logo)
 
-def apply_header_logo(base, logo_path, cfg):
-    logo = Image.open(logo_path).convert("RGBA")
+def apply_header_logo(base, logo, cfg):
+    if isinstance(logo, str):
+        logo = Image.open(logo).convert("RGBA")
+
     h = cfg["header_logo"]
     scale = h["height"] / logo.height
     logo = logo.resize((int(logo.width * scale), h["height"]), Image.LANCZOS)
@@ -265,8 +308,10 @@ def apply_header_logo(base, logo_path, cfg):
         logo = logo.resize((h["max_width"], int(logo.height * scale)), Image.LANCZOS)
     base.paste(logo, (h["left_margin"], h["top_margin"]), logo)
 
-def apply_top_center_logo(base, logo_path, cfg):
-    logo = Image.open(logo_path).convert("RGBA")
+def apply_top_center_logo(base, logo, cfg):
+    if isinstance(logo, str):
+        logo = Image.open(logo).convert("RGBA")
+
     h = cfg["header_logo"]
     if logo.height > h["max_height"]:
         scale = h["max_height"] / logo.height
@@ -279,11 +324,14 @@ def apply_top_center_logo(base, logo_path, cfg):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("NFC Card Generator v1.6")
+        self.title("NFC Card Generator v1.8")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
         self.logo_path = None
+        self.logo_image = None
+        self.cache_web_images = tk.BooleanVar(value=load_cache_web_images())
+
         self.output_image = None
         self.output_dir = load_output_dir()
 
@@ -409,7 +457,10 @@ class App(tk.Tk):
         controls.pack(pady=5)
 
         ttk.Button(controls, text="Import System Logo", command=self.load_logo).pack(side="left", padx=5)
+        ttk.Button(controls, text="Logo from URL", command=self.load_logo_from_url).pack(side="left", padx=5)
+
         ttk.Button(controls, text="Import Poster Image", command=self.load_local_poster).pack(side="left", padx=5)
+        ttk.Button(controls, text="Poster from URL", command=self.load_poster_from_url).pack(side="left", padx=5)
 
         ttk.Label(controls, text="Source:").pack(side="left", padx=(0, 4))
 
@@ -436,6 +487,13 @@ class App(tk.Tk):
             text="Search",
             command=self.search
         ).pack(side="left")
+
+        ttk.Checkbutton(
+            controls,
+            text="Cache URL images",
+            variable=self.cache_web_images,
+            command=lambda: save_cache_web_images(self.cache_web_images.get())
+        ).pack(side="left", padx=(10, 0))
 
         main = ttk.Frame(self)
         main.pack(fill="both", expand=True)
@@ -546,8 +604,8 @@ class App(tk.Tk):
 
             base.paste(template_img, (0, 0), template_img)
 
-            if self.logo_path:
-                apply_header_logo(base, self.logo_path, cfg)
+            if self.logo_image or self.logo_path:
+                apply_header_logo(base, self.logo_image or self.logo_path, cfg)
 
         elif cfg["mode"] == "framed-top-logo":
             base = template_img.copy()
@@ -557,14 +615,14 @@ class App(tk.Tk):
                 x = (base.width - T4_POSTER_W) // 2
                 base.paste(poster, (x, T4_POSTER_Y), poster)
 
-            if self.logo_path:
-                apply_top_center_logo(base, self.logo_path, cfg)
+            if self.logo_image or self.logo_path:
+                apply_top_center_logo(base, self.logo_image or self.logo_path, cfg)
 
         else:
             base = template_img.copy()
 
-            if self.logo_path:
-                apply_footer_logo(base, self.logo_path, cfg)
+            if self.logo_image or self.logo_path:
+                apply_footer_logo(base, self.logo_image or self.logo_path, cfg)
 
             if self.selected_poster_image:
                 c = cfg["center"]
@@ -595,7 +653,7 @@ class App(tk.Tk):
         if not query:
             return
 
-        if not self.logo_path:
+        if not (self.logo_image or self.logo_path):
             messagebox.showerror("Error", "Upload a system logo first")
             return
 
@@ -849,8 +907,67 @@ class App(tk.Tk):
     def load_logo(self):
         p = filedialog.askopenfilename(filetypes=[("PNG", "*.png")])
         if p:
-            self.logo_path = p
+            self.logo_image = Image.open(p).convert("RGBA")
+            self.logo_path = None
             self.render_with_current_template()
+
+    def ask_url(self, title):
+        d = tk.Toplevel(self)
+        d.title(title)
+        d.geometry("520x150")
+        d.grab_set()
+
+        ttk.Label(d, text=title).pack(pady=10)
+
+        url_var = tk.StringVar()
+        e = ttk.Entry(d, textvariable=url_var, width=65)
+        e.pack(padx=10)
+        e.focus()
+
+        result = {"url": None}
+
+        def confirm():
+            result["url"] = url_var.get().strip()
+            d.destroy()
+
+        ttk.Button(d, text="Load", command=confirm).pack(pady=10)
+
+        d.wait_window()
+        return result["url"]
+
+    def load_logo_from_url(self):
+        url = self.ask_url("Enter System Logo URL")
+        if not url:
+            return
+
+        try:
+            self.logo_image = load_image_from_url(url)
+            self.logo_path = None
+            self.render_with_current_template()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load logo:\n{e}")
+
+    def load_poster_from_url(self):
+        url = self.ask_url("Enter Poster Image URL")
+        if not url:
+            return
+
+        try:
+            img = load_image_from_url(url)
+
+            self.selected_poster_image = img
+            self.poster_orientation = (
+                "horizontal" if img.width > img.height else "vertical"
+            )
+
+            self.current_game_title = os.path.splitext(
+                os.path.basename(url.split("?")[0])
+            )[0]
+
+            self.render_with_current_template()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load poster:\n{e}")
 
 
 # ---------------- RUN ----------------
