@@ -377,7 +377,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v1.9.1 by Anime0t4ku")
+        self.title("NFC Card Generator v1.9.2 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -611,6 +611,9 @@ class App(tk.Tk):
 
         self.game_entry = ttk.Entry(self.search_container, width=30)
         self.game_entry.pack(side="left", padx=5)
+
+        # Press Enter to search
+        self.game_entry.bind("<Return>", lambda e: self.search())
 
         ttk.Button(
             self.search_container,
