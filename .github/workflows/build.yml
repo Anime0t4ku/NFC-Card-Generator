@@ -28,9 +28,9 @@ jobs:
           pyinstaller nfc-card-generator.py `
             --onefile `
             --noconsole `
-            --icon app.ico `
             --add-data "templates;templates" `
-            --add-data "icon.png;."
+            --add-data "icon.png;." `
+            --icon ../assets/icon.ico
         working-directory: NFC-Card-Generator
 
       - name: Upload NFC-Card-Generator artifact
