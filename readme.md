@@ -1,9 +1,9 @@
 # NFC Card Generator
 
 **nfc-card-generator.py** is a Python-based GUI application for generating **print-ready NFC card artwork** using predefined visual templates.  
-It supports **games, movies, and TV shows**, allowing you to search for official or community artwork and generate consistent card images with minimal manual adjustment.
+It supports **games, movies, and TV shows**, allowing you to browse, preview, and combine artwork sources to create consistent NFC card images with minimal manual adjustment.
 
-The tool is designed around repeatability and ease of use, making it ideal for physical NFC card projects, retro collections, and media-based launch or display systems.
+The tool is designed around **repeatability, flexibility, and a keyboard-friendly workflow**, making it ideal for physical NFC card projects, retro collections, and media-based launch or display systems.
 
 ---
 
@@ -11,21 +11,23 @@ The tool is designed around repeatability and ease of use, making it ideal for p
 
 ![NFC Card Generator Screenshot](templates/screenshot.png)
 
-*Example showing games.*
+*Example showing game artwork.*
 
 ![NFC Card Generator Screenshot 2](templates/screenshot2.png)
 
-*Example showing movies.*
+*Example showing movie and TV artwork.*
 
 ---
+
 ## Features
 
 ### General
 - Desktop GUI built with Tkinter
 - Live preview of the generated card
 - Automatic artwork scaling while preserving aspect ratio
-- Template-aware image placement with fixed clear areas
+- Template-aware image placement using fixed clear areas
 - Manual crop adjustment when needed
+- Keyboard-friendly workflow (Enter to search, Enter to load URLs)
 - Persistent settings stored in `config.json`
 
 ---
@@ -33,15 +35,15 @@ The tool is designed around repeatability and ease of use, making it ideal for p
 ### Game Artwork (SteamGridDB)
 - Search and select games via SteamGridDB
 - Multiple community-created posters per game
-- Vertical poster filtering
+- Vertical poster filtering for card-friendly layouts
 - Asynchronous image loading with no UI freezing
 
 ---
 
 ### Movie & TV Artwork (TMDB)
-- Unified search for **movies and TV shows**
+- Unified search for movies and TV shows
 - Official posters retrieved directly from TMDB
-- Displays **all available poster variants** per title
+- Displays all available poster variants per title
 - English posters preferred with automatic fallback
 - Automatic release year detection for accurate naming
 
@@ -52,21 +54,32 @@ The tool is designed around repeatability and ease of use, making it ideal for p
 - Source selector for SteamGridDB or TMDB
 - Title picker dialog for search results
 - Shared thumbnail grid for all artwork sources
+- Posters can be browsed without selecting a system logo first
 
 ---
 
 ### Templates & Rendering
 - Supports multiple predefined base templates
 - Framed and layered layout styles
-- Header and footer logo placement
-- Automatic logo scaling and alignment
+- Header and footer logo placement (optional)
+- Automatic logo scaling and alignment per template
 - Template previews shown directly in the UI
 
 ---
 
-### Local Image Support
+### System Logos
+- Import system logos from disk
+- Load system logos directly from HTTP(S) URLs
+- Optional logo usage, cards can be generated without a logo
+- Logos are automatically resized and positioned per template
+
+---
+
+### Poster Image Support
 - Import custom poster images from disk
+- Load poster images directly from HTTP(S) URLs
 - Automatic orientation detection (horizontal / vertical)
+- Crop controls adapt based on image orientation
 - Works without any API usage
 - Suitable for fan art or custom designs
 
@@ -78,6 +91,7 @@ The tool is designed around repeatability and ease of use, making it ideal for p
 - One-click access to the output folder
 - Timestamped filenames to prevent overwrites
 - Movie and TV titles include release year in filenames
+- Optional caching of URL-loaded images to disk
 
 ---
 
@@ -119,18 +133,18 @@ These logos are intended to be used directly with the included templates and are
 ### SteamGridDB
 Used for searching and retrieving game artwork.
 
-1. Create an account at https://www.steamgriddb.com
-2. Open your account settings
-3. Generate a personal API key
+1. Create an account at https://www.steamgriddb.com  
+2. Open your account settings  
+3. Generate a personal API key  
 
 ---
 
 ### TMDB (The Movie Database)
 Used for searching and retrieving movie and TV posters.
 
-1. Create an account at https://www.themoviedb.org
-2. Go to **Settings → API**
-3. Generate an API key
+1. Create an account at https://www.themoviedb.org  
+2. Go to Settings → API  
+3. Generate an API key  
 
 API keys are requested by the application when needed and stored locally.
 
@@ -140,9 +154,7 @@ API keys are requested by the application when needed and stored locally.
 
 On some Linux distributions, **Tkinter is not installed by default** and must be installed manually.
 
-Required package:
-
-    python3-pillow-tk
+Required package: `python3-pillow-tk`
 
 If Tkinter is missing, the application will fail to launch.
 
@@ -150,18 +162,18 @@ If Tkinter is missing, the application will fail to launch.
 
 ## Installation
 
-### Clone the repository
+Clone the repository:
 
-    git clone https://github.com/yourusername/nfc-card-generator.git
-    cd nfc-card-generator
+git clone https://github.com/yourusername/nfc-card-generator.git  
+cd nfc-card-generator  
 
-### Install dependencies
+Install dependencies:
 
-    pip install pillow requests
+pip install pillow requests  
 
-### Run the application
+Run the application:
 
-    python nfc-card-generator.py
+python nfc-card-generator.py  
 
 ---
 
@@ -173,8 +185,9 @@ Stored settings include:
 - Output directory
 - SteamGridDB API key
 - TMDB API key
+- URL image caching preference
 
-These settings persist between sessions.
+All settings persist between sessions.
 
 ---
 
@@ -183,7 +196,7 @@ These settings persist between sessions.
 - When an output folder is set, generated images are saved automatically
 - No save dialog is shown during normal operation
 - A confirmation message appears after saving and disappears after a few seconds
-- A **Open Output Folder** button becomes available once a folder is configured
+- An **Open Output Folder** button becomes available once a folder is configured
 
 ---
 
@@ -191,6 +204,7 @@ These settings persist between sessions.
 
 - Images always maintain their original aspect ratio
 - Template clear areas are respected to avoid unwanted cropping
+- Logos are optional and template-aware
 - The project is intended for personal and hobbyist use
 
 ---
