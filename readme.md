@@ -7,13 +7,28 @@ The tool is designed around **repeatability, flexibility, and a keyboard-friendl
 
 ---
 
+## Nightly builds
+
+### Download the latest builds from continuous integration:
+
+| Name                    | Status                            | File                                        |
+|-------------------------|-----------------------------------|---------------------------------------------|
+| NFC Card Generator      | [![Build Status][Build]][Actions] | [![Emulator][Download]][NFC Card Generator] |
+
+[Actions]: https://github.com/Anime0t4ku/NFC-Card-Generator/actions/workflows/build.yml
+[Build]: https://github.com/Anime0t4ku/NFC-Card-Generator/actions/workflows/build.yml/badge.svg
+[Download]: https://img.shields.io/badge/Download-blue
+[NFC Card Generator]: https://github.com/Anime0t4ku/NFC-Card-Generator/releases/download/Pre-release/NFC-Card-Generator.zip
+
+---
+
 ## Screenshots
 
-![NFC Card Generator Screenshot](templates/screenshot.png)
+![NFC Card Generator Screenshot](NFC-Card-Generator/templates/screenshot.png)
 
 *Example showing game artwork.*
 
-![NFC Card Generator Screenshot 2](templates/screenshot2.png)
+![NFC Card Generator Screenshot 2](NFC-Card-Generator/templates/screenshot2.png)
 
 *Example showing movie and TV artwork.*
 
