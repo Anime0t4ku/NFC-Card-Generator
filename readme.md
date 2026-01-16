@@ -1,6 +1,6 @@
 # NFC Card Generator
 
-**nfc-card-generator.py** is a Python-based GUI application for generating **print-ready NFC card artwork** using predefined visual templates.  
+**nfc-card-generator.py** is a Python-based GUI application for generating **print-ready NFC card artwork** using predefined visual templates.
 It supports **games, movies, and TV shows**, allowing you to browse, preview, and combine artwork sources to create consistent NFC card images with minimal manual adjustment.
 
 The tool is designed around **repeatability, flexibility, and a keyboard-friendly workflow**, making it ideal for physical NFC card projects, retro collections, and media-based launch or display systems.
@@ -105,7 +105,7 @@ The tool is designed around **repeatability, flexibility, and a keyboard-friendl
 
 ## Base Templates
 
-The application currently includes **five base templates**, each with its own layout and visual style.  
+The application currently includes **five base templates**, each with its own layout and visual style.
 Templates are designed with fixed clear areas to ensure correct artwork placement and consistent results.
 
 ---
@@ -133,18 +133,18 @@ These logos are intended to be used directly with the included templates and are
 ### SteamGridDB
 Used for searching and retrieving game artwork.
 
-1. Create an account at https://www.steamgriddb.com  
-2. Open your account settings  
-3. Generate a personal API key  
+1. Create an account at https://www.steamgriddb.com
+2. Open your account settings
+3. Generate a personal API key
 
 ---
 
 ### TMDB (The Movie Database)
 Used for searching and retrieving movie and TV posters.
 
-1. Create an account at https://www.themoviedb.org  
-2. Go to Settings → API  
-3. Generate an API key  
+1. Create an account at https://www.themoviedb.org
+2. Go to Settings → API
+3. Generate an API key
 
 API keys are requested by the application when needed and stored locally.
 
@@ -164,16 +164,16 @@ If Tkinter is missing, the application will fail to launch.
 
 Clone the repository:
 
-git clone https://github.com/yourusername/nfc-card-generator.git  
-cd nfc-card-generator  
+git clone https://github.com/yourusername/nfc-card-generator.git
+cd nfc-card-generator
 
 Install dependencies:
 
-pip install pillow requests  
+pip install -r requirements.txt
 
 Run the application:
 
-python nfc-card-generator.py  
+python nfc-card-generator.py
 
 ---
 
@@ -211,5 +211,5 @@ All settings persist between sessions.
 
 ## License
 
-This project is released under the MIT License.  
+This project is released under the MIT License.
 You are free to modify, distribute, and use it for personal or commercial projects.
