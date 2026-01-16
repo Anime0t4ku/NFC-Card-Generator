@@ -377,7 +377,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v1.9 by Anime0t4ku")
+        self.title("NFC Card Generator v1.9.1 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -937,25 +937,10 @@ class App(tk.Tk):
         i = len(self.thumb_imgs)
         img = Image.open(BytesIO(data)).convert("RGBA")
 
-        max_size = ICON_THUMB_SIZE - ICON_PADDING * 2
-        scale = min(max_size / img.width, max_size / img.height)
-        img = img.resize(
-            (int(img.width * scale), int(img.height * scale)),
-            Image.LANCZOS
-        )
+        # Use vertical poster thumbnails (same as TMDB)
+        img = img.resize((THUMB_W, THUMB_H), Image.LANCZOS)
 
-        canvas = Image.new(
-            "RGBA",
-            (ICON_THUMB_SIZE, ICON_THUMB_SIZE),
-            (0, 0, 0, 0)
-        )
-
-        x = (ICON_THUMB_SIZE - img.width) // 2
-        y = (ICON_THUMB_SIZE - img.height) // 2
-        canvas.paste(img, (x, y), img)
-
-        tk_img = ImageTk.PhotoImage(canvas)
-
+        tk_img = ImageTk.PhotoImage(img)
         self.thumb_imgs.append(tk_img)
 
         ttk.Button(
