@@ -9,6 +9,7 @@ import threading
 import sys
 import subprocess
 import re
+import webbrowser
 from datetime import datetime
 
 def resource_path(relative_path):
@@ -397,7 +398,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.0-beta by Anime0t4ku")
+        self.title("NFC Card Generator v2.0 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -426,9 +427,8 @@ class App(tk.Tk):
         self.search_id = 0
 
         self.build_ui()
+        self.update_output_folder_button()
 
-        if self.output_dir and os.path.isdir(self.output_dir):
-            self.show_open_folder_button()
 
     def ensure_api_key(self, service="steamgriddb"):
         global API_KEY, TMDB_API_KEY
@@ -447,19 +447,61 @@ class App(tk.Tk):
 
         title = "SteamGridDB API Key" if service == "steamgriddb" else "TMDB API Key"
 
+        if service == "steamgriddb":
+            info_text = (
+                "You need a free SteamGridDB account to use the API.\n\n"
+                "Create an account and generate an API key here:"
+            )
+            api_url = "https://www.steamgriddb.com/profile/preferences/api"
+        else:
+            info_text = (
+                "You need a free TMDB account to use the API.\n\n"
+                "Create an account and request an API key here:"
+            )
+            api_url = "https://www.themoviedb.org/settings/api"
+
         d = tk.Toplevel(self)
         d.title(title)
-        d.geometry("420x160")
+        d.geometry("520x260")
+        d.transient(self)
         d.grab_set()
 
-        ttk.Label(d, text=f"Enter your {title}").pack(pady=10)
-        e = ttk.Entry(d, width=50)
-        e.pack()
+        ttk.Label(
+            d,
+            text=info_text,
+            wraplength=480,
+            justify="left"
+        ).pack(pady=(10, 6), padx=10)
+
+        link = ttk.Label(
+            d,
+            text=api_url,
+            foreground="blue",
+            cursor="hand2",
+            wraplength=480
+        )
+        link.pack(pady=(0, 12))
+        link.bind("<Button-1>", lambda e, url=api_url: webbrowser.open(url))
+
+        ttk.Label(d, text=f"Enter your {title}:").pack()
+
+        key_var = tk.StringVar()
+        e = ttk.Entry(d, textvariable=key_var, width=60)
+        e.pack(pady=6, padx=10)
+        e.focus()
+
+        def save_and_close(event=None):
+            key = key_var.get().strip()
+            if key:
+                save_api_key(key, service)
+            d.destroy()
+
+        e.bind("<Return>", save_and_close)
 
         ttk.Button(
             d,
             text="Save",
-            command=lambda: (save_api_key(e.get(), service), d.destroy())
+            command=save_and_close
         ).pack(pady=10)
 
         d.wait_window()
@@ -653,13 +695,6 @@ class App(tk.Tk):
             command=self.search
         ).pack(side="left", padx=(0, 8))
 
-        ttk.Checkbutton(
-            self.search_container,
-            text="Cache URL images",
-            variable=self.cache_web_images,
-            command=lambda: save_cache_web_images(self.cache_web_images.get())
-        ).pack(side="left")
-
         ttk.Separator(
             self.source_container,
             orient="vertical"
@@ -731,35 +766,249 @@ class App(tk.Tk):
         bottom = ttk.Frame(main)
         bottom.grid(row=1, column=0, columnspan=3, pady=10)
 
-        self.output_dir_btn = ttk.Button(
+        ttk.Button(
             bottom,
-            text="Set Output Folder",
-            command=self.choose_output_dir
-        )
-        self.output_dir_btn.pack(side="left", padx=10)
+            text="Settings",
+            command=self.open_settings
+        ).pack(side="left", padx=10)
 
-        self.icon_pack_btn = ttk.Button(
+        ttk.Button(
             bottom,
-            text="Set System Icon Pack Folder",
-            command=self.choose_icon_pack_dir
+            text="Save Image",
+            command=self.save
+        ).pack(side="left", padx=10)
+
+        self.open_folder_btn = ttk.Button(
+            bottom,
+            text="Open Output Folder",
+            command=self.open_output_dir
         )
-        self.icon_pack_btn.pack(side="left", padx=10)
-
-        # --- Update button labels based on saved state ---
-        if self.output_dir:
-            self.output_dir_btn.config(text="Change Output Folder")
-
-        if self.icon_pack_dir:
-            self.icon_pack_btn.config(text="Change System Icon Pack Folder")
-
-        self.open_folder_btn = ttk.Button(bottom, text="Open Output Folder", command=self.open_output_dir)
-        ttk.Button(bottom, text="Save Image", command=self.save).pack(side="left")
 
         self.status_label = ttk.Label(bottom, text="", foreground="green")
         self.status_label.pack(side="left", padx=15)
 
-    # -------- LOCAL POSTER --------
+    # -------- Settings Menu --------
 
+    def open_settings(self):
+        d = tk.Toplevel(self)
+        d.title("Settings")
+        d.geometry("520x700")
+        d.transient(self)
+        d.grab_set()
+
+        container = ttk.Frame(d, padding=15)
+        container.pack(fill="both", expand=True)
+
+        # ================= TITLE =================
+        ttk.Label(
+            container,
+            text="Settings",
+            font=("TkDefaultFont", 11, "bold")
+        ).pack(anchor="w")
+
+        # ================= OUTPUT FOLDER =================
+        ttk.Label(
+            container,
+            text="Output Folder",
+            font=("TkDefaultFont", 10, "bold")
+        ).pack(anchor="w", pady=(15, 4))
+
+        output_dir_var = tk.StringVar(
+            value=self.output_dir or "No output folder set"
+        )
+
+        ttk.Label(
+            container,
+            textvariable=output_dir_var,
+            foreground="gray",
+            wraplength=480
+        ).pack(anchor="w", pady=(0, 6))
+
+        def set_output_dir_from_settings():
+            path = filedialog.askdirectory(parent=d)
+            if not path:
+                return
+
+            self.output_dir = path
+            save_output_dir(path)
+            output_dir_var.set(path)
+
+            self.update_output_folder_button()
+            self.show_status("Output folder set")
+
+        ttk.Button(
+            container,
+            text="Set / Change Output Folder",
+            command=set_output_dir_from_settings
+        ).pack(anchor="w")
+
+        ttk.Separator(container).pack(fill="x", pady=15)
+
+        # ================= SYSTEM LOGO PACK FOLDER =================
+        ttk.Label(
+            container,
+            text="System Logo Pack Folder",
+            font=("TkDefaultFont", 10, "bold")
+        ).pack(anchor="w", pady=(10, 4))
+
+        icon_pack_var = tk.StringVar(
+            value=self.icon_pack_dir or "No system logo pack folder set"
+        )
+
+        ttk.Label(
+            container,
+            textvariable=icon_pack_var,
+            foreground="gray",
+            wraplength=480
+        ).pack(anchor="w", pady=(0, 6))
+
+        def set_icon_pack_from_settings():
+            path = filedialog.askdirectory(parent=d)
+            if not path:
+                return
+
+            self.icon_pack_dir = path
+            save_icon_pack_dir(path)
+            icon_pack_var.set(path)
+            self.build_source_controls(refresh=True)
+            self.show_status("System logo pack folder set")
+
+        ttk.Button(
+            container,
+            text="Set / Change System Logo Pack Folder",
+            command=set_icon_pack_from_settings
+        ).pack(anchor="w")
+
+        ttk.Separator(container).pack(fill="x", pady=15)
+
+        # ================= CACHE URL IMAGES =================
+        ttk.Label(
+            container,
+            text="Web Images",
+            font=("TkDefaultFont", 10, "bold")
+        ).pack(anchor="w", pady=(10, 4))
+
+        ttk.Checkbutton(
+            container,
+            text="Cache URL images",
+            variable=self.cache_web_images,
+            command=lambda: save_cache_web_images(self.cache_web_images.get())
+        ).pack(anchor="w")
+
+        ttk.Separator(container).pack(fill="x", pady=15)
+
+        # ================= STEAMGRIDDB API KEY =================
+        ttk.Label(
+            container,
+            text="SteamGridDB API Key",
+            font=("TkDefaultFont", 10, "bold")
+        ).pack(anchor="w", pady=(10, 4))
+
+        steam_key_var = tk.StringVar(
+            value="Set" if load_api_key("steamgriddb") else "Not set"
+        )
+
+        ttk.Label(
+            container,
+            textvariable=steam_key_var,
+            foreground="gray"
+        ).pack(anchor="w", pady=(0, 6))
+
+        def set_steam_key():
+            # Clear current key so ensure_api_key shows the dialog
+            save_api_key(None, "steamgriddb")
+
+            global API_KEY
+            API_KEY = None
+
+            if self.ensure_api_key("steamgriddb"):
+                steam_key_var.set("Set")
+                self.show_status("SteamGridDB API key saved")
+
+        def remove_steam_key():
+            save_api_key(None, "steamgriddb")
+            steam_key_var.set("Not set")
+
+            global API_KEY
+            API_KEY = None
+
+            self.show_status("SteamGridDB API key removed")
+
+        btn_row = ttk.Frame(container)
+        btn_row.pack(anchor="w")
+
+        ttk.Button(
+            btn_row,
+            text="Set / Change",
+            command=set_steam_key
+        ).pack(side="left")
+
+        ttk.Button(
+            btn_row,
+            text="Remove",
+            command=remove_steam_key
+        ).pack(side="left", padx=(8, 0))
+
+        ttk.Separator(container).pack(fill="x", pady=18)
+
+        ttk.Button(
+            d,
+            text="Close",
+            command=d.destroy
+        ).pack(pady=10)
+        # ================= TMDB API KEY =================
+        ttk.Label(
+            container,
+            text="TMDB API Key",
+            font=("TkDefaultFont", 10, "bold")
+        ).pack(anchor="w", pady=(10, 4))
+
+        tmdb_key_var = tk.StringVar(
+            value="Set" if load_api_key("tmdb") else "Not set"
+        )
+
+        ttk.Label(
+            container,
+            textvariable=tmdb_key_var,
+            foreground="gray"
+        ).pack(anchor="w", pady=(0, 6))
+
+        def set_tmdb_key():
+            # Clear current key so ensure_api_key shows the dialog
+            save_api_key(None, "tmdb")
+
+            global TMDB_API_KEY
+            TMDB_API_KEY = None
+
+            if self.ensure_api_key("tmdb"):
+                tmdb_key_var.set("Set")
+                self.show_status("TMDB API key saved")
+
+        def remove_tmdb_key():
+            save_api_key(None, "tmdb")
+            tmdb_key_var.set("Not set")
+
+            global TMDB_API_KEY
+            TMDB_API_KEY = None
+
+            self.show_status("TMDB API key removed")
+
+        btn_row = ttk.Frame(container)
+        btn_row.pack(anchor="w")
+
+        ttk.Button(
+            btn_row,
+            text="Set / Change",
+            command=set_tmdb_key
+        ).pack(side="left")
+
+        ttk.Button(
+            btn_row,
+            text="Remove",
+            command=remove_tmdb_key
+        ).pack(side="left", padx=(8, 0))
+
+        # -------- LOCAL POSTER --------
     def load_local_poster(self):
         p = filedialog.askopenfilename(
             filetypes=[("Images", "*.png *.jpg *.jpeg *.webp")]
@@ -1183,10 +1432,6 @@ class App(tk.Tk):
 
     # -------- OUTPUT --------
 
-    def show_open_folder_button(self):
-        if not self.open_folder_btn.winfo_ismapped():
-            self.open_folder_btn.pack(side="left", padx=10)
-
     def choose_output_dir(self):
         path = filedialog.askdirectory()
         if path:
@@ -1208,6 +1453,14 @@ class App(tk.Tk):
                 subprocess.Popen(["xdg-open", self.output_dir])
         except Exception as e:
             messagebox.showerror("Error", f"Could not open folder:\n{e}")
+
+    def update_output_folder_button(self):
+        if self.output_dir and os.path.isdir(self.output_dir):
+            if not self.open_folder_btn.winfo_ismapped():
+                self.open_folder_btn.pack(side="left", padx=10)
+        else:
+            if self.open_folder_btn.winfo_ismapped():
+                self.open_folder_btn.pack_forget()
 
     def show_status(self, text):
         self.status_label.config(text=text)
@@ -1286,6 +1539,33 @@ class App(tk.Tk):
 
         d.wait_window()
         return result["url"]
+
+    def ask_text_input(self, title, prompt):
+        d = tk.Toplevel(self)
+        d.title(title)
+        d.geometry("520x160")
+        d.transient(self)
+        d.grab_set()
+
+        ttk.Label(d, text=prompt).pack(pady=10)
+
+        val = tk.StringVar()
+        e = ttk.Entry(d, textvariable=val, width=60)
+        e.pack(padx=10)
+        e.focus()
+
+        result = {"value": None}
+
+        def confirm(event=None):
+            result["value"] = val.get().strip()
+            d.destroy()
+
+        e.bind("<Return>", confirm)
+
+        ttk.Button(d, text="Save", command=confirm).pack(pady=10)
+
+        d.wait_window()
+        return result["value"]
 
     def load_logo_from_url(self):
         url = self.ask_url("Enter System Logo URL")
