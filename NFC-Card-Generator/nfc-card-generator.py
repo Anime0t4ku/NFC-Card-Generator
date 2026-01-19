@@ -1052,13 +1052,15 @@ class App(tk.Tk):
             command=lambda: save_cache_logos(self.cache_web_logos.get())
         ).pack(anchor="w")
 
+        def toggle_cached_logo_search():
+            save_search_cached_logos(self.search_cached_logos.get())
+            self.build_source_controls(refresh=True)
+
         ttk.Checkbutton(
             container,
             text="Include cached web logos in logo search",
             variable=self.search_cached_logos,
-            command=lambda: save_search_cached_logos(
-                self.search_cached_logos.get()
-            )
+            command=toggle_cached_logo_search
         ).pack(anchor="w")
 
         ttk.Separator(container).pack(fill="x", pady=15)
@@ -1318,7 +1320,10 @@ class App(tk.Tk):
         current_search_id = self.search_id
 
         if self.source_var.get() == "system":
-            if not self.icon_pack_dir:
+            if not (
+                    (self.icon_pack_dir and os.path.isdir(self.icon_pack_dir)) or
+                    self.search_cached_logos.get()
+            ):
                 return
 
             self.show_loading()
