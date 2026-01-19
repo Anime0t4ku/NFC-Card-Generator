@@ -37,19 +37,41 @@ T4_POSTER_Y = 80
 TEMPLATES = {
     "Black with Pins": {
         "image_path": "templates/template_1.png",
-        "center": {"x": 10, "y": 59, "w": 597, "h": 855},
-        "footer": {"height": 90, "logo_height": 46, "logo_margin": 25},
+        "center": {
+            "x": 10,
+            "y": 59,
+            "w": 597,
+            "h": 855
+        },
+        "footer": {
+            "height": 90,
+            "logo_height": 46,
+            "max_width": 300,
+            "logo_margin": 25
+        },
         "mode": "framed"
     },
+
     "White with Pins": {
         "image_path": "templates/template_2.png",
-        "center": {"x": 14, "y": 63, "w": 591, "h": 849},
-        "footer": {"height": 90, "logo_height": 46, "logo_margin": 25},
+        "center": {
+            "x": 14,
+            "y": 63,
+            "w": 591,
+            "h": 849
+        },
+        "footer": {
+            "height": 90,
+            "logo_height": 46,
+            "max_width": 300,
+            "logo_margin": 25
+        },
         "mode": "framed"
     },
+
     "HuCard Style": {
         "image_path": "templates/template_3.png",
-        "poster_y": 120,
+        "poster_y": 150,  # Perfect starting point
         "header_logo": {
             "height": 63,
             "max_width": 250,
@@ -58,23 +80,38 @@ TEMPLATES = {
         },
         "mode": "layered"
     },
+
     "Black": {
         "image_path": "templates/template_4.png",
-        "header_logo": {"max_height": 62, "top_margin": 10},
+        "header_logo": {
+            "max_height": 62,
+            "max_width": 300,
+            "top_margin": 10
+        },
         "mode": "framed-top-logo"
     },
+
     "White": {
         "image_path": "templates/template_5.png",
-        "header_logo": {"max_height": 62, "top_margin": 10},
+        "header_logo": {
+            "max_height": 62,
+            "max_width": 300,
+            "top_margin": 10
+        },
         "mode": "framed-top-logo"
     },
+
     "Poster Only": {
         "image_path": "templates/template_6.png",
-        "size": {"w": 619, "h": 994},
+        "size": {
+            "w": 619,
+            "h": 994
+        },
         "corner_radius": 22,
         "mode": "full-poster-rounded"
     }
 }
+
 
 THUMB_W = 160
 THUMB_H = 240
@@ -298,10 +335,18 @@ def cover_image_bottom(img, w, h):
 def cover_image_manual(img, w, h, offset):
     ratio = max(w / img.width, h / img.height)
     r = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+
     x = (r.width - w) // 2
     max_y = r.height - h
-    y = max(0, min(max_y, int(offset)))
+
+    # Map slider (0–1000) to actual vertical range (0–max_y)
+    if max_y > 0:
+        y = int((offset / 1000) * max_y)
+    else:
+        y = 0
+
     return r.crop((x, y, x + w, y + h))
+
 
 def apply_rounded_corners(img, radius):
     mask = Image.new("L", img.size, 0)
@@ -372,33 +417,86 @@ def apply_footer_logo(base, logo, cfg):
         logo = Image.open(logo).convert("RGBA")
 
     f = cfg["footer"]
+
+    # Scale by height first
     scale = f["logo_height"] / logo.height
-    logo = logo.resize((int(logo.width * scale), f["logo_height"]), Image.LANCZOS)
+    new_w = int(logo.width * scale)
+    new_h = f["logo_height"]
+
+    logo = logo.resize((new_w, new_h), Image.LANCZOS)
+
+    # 🔒 Enforce max width if defined
+    if "max_width" in f and logo.width > f["max_width"]:
+        scale = f["max_width"] / logo.width
+        logo = logo.resize(
+            (f["max_width"], int(logo.height * scale)),
+            Image.LANCZOS
+        )
+
     y = base.height - f["height"] + (f["height"] - logo.height) // 2
     base.paste(logo, (f["logo_margin"], y), logo)
+
 
 def apply_header_logo(base, logo, cfg):
     if isinstance(logo, str):
         logo = Image.open(logo).convert("RGBA")
 
     h = cfg["header_logo"]
+
+    # --- Resize by height first ---
     scale = h["height"] / logo.height
-    logo = logo.resize((int(logo.width * scale), h["height"]), Image.LANCZOS)
+    logo = logo.resize(
+        (int(logo.width * scale), h["height"]),
+        Image.LANCZOS
+    )
+
+    # --- Enforce max width if needed ---
     if logo.width > h["max_width"]:
         scale = h["max_width"] / logo.width
-        logo = logo.resize((h["max_width"], int(logo.height * scale)), Image.LANCZOS)
-    base.paste(logo, (h["left_margin"], h["top_margin"]), logo)
+        logo = logo.resize(
+            (h["max_width"], int(logo.height * scale)),
+            Image.LANCZOS
+        )
+
+    # --- LEFT aligned (fixed) ---
+    x = h["left_margin"]
+
+    # --- VERTICALLY CENTERED inside header height ---
+    header_h = h["height"]
+    y = h["top_margin"] + (header_h - logo.height) // 2
+
+    base.paste(logo, (x, y), logo)
 
 def apply_top_center_logo(base, logo, cfg):
     if isinstance(logo, str):
         logo = Image.open(logo).convert("RGBA")
 
     h = cfg["header_logo"]
+
+    # Scale by height first
     if logo.height > h["max_height"]:
         scale = h["max_height"] / logo.height
-        logo = logo.resize((int(logo.width * scale), h["max_height"]), Image.LANCZOS)
+        logo = logo.resize(
+            (int(logo.width * scale), h["max_height"]),
+            Image.LANCZOS
+        )
+
+    # Apply max width if present
+    if "max_width" in h and logo.width > h["max_width"]:
+        scale = h["max_width"] / logo.width
+        logo = logo.resize(
+            (h["max_width"], int(logo.height * scale)),
+            Image.LANCZOS
+        )
+
+    # Horizontal center
     x = (base.width - logo.width) // 2
-    base.paste(logo, (x, h["top_margin"]), logo)
+
+    # ✅ Vertical center INSIDE header band
+    header_height = h["max_height"]
+    y = h["top_margin"] + (header_height - logo.height) // 2
+
+    base.paste(logo, (x, y), logo)
 
 # ---------------- GUI ----------------
 
@@ -412,7 +510,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.0.2 by Anime0t4ku")
+        self.title("NFC Card Generator v2.1.0 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
