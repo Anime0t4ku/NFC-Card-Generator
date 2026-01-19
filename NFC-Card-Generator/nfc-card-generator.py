@@ -533,7 +533,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.1.2 by Anime0t4ku")
+        self.title("NFC Card Generator v2.1.3 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
