@@ -11,7 +11,7 @@ body:
     id: functionality
     attributes:
       label: Select the functionality
-      description: What functionality are you experiencing the issue with?
+      description: In which functionality would you like to add a new feature?
       options:
         - GUI
         - Templates
