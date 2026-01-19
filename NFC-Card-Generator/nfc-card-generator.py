@@ -319,7 +319,7 @@ def maybe_cache_web_image(img, url, kind="poster"):
 
     try:
         img = img.convert("RGBA")
-        img.save(path, format="PNG")  # 🔒 explicit format fixes JPG/WebP issues
+        img.save(path, format="PNG")  # explicit format fixes JPG/WebP issues
         print(f"Cached web image → {path}")
     except Exception as e:
         print("Failed to cache web image:", e)
@@ -448,7 +448,7 @@ def apply_footer_logo(base, logo, cfg):
 
     logo = logo.resize((new_w, new_h), Image.LANCZOS)
 
-    # 🔒 Enforce max width if defined
+    # Enforce max width if defined
     if "max_width" in f and logo.width > f["max_width"]:
         scale = f["max_width"] / logo.width
         logo = logo.resize(
@@ -515,7 +515,7 @@ def apply_top_center_logo(base, logo, cfg):
     # Horizontal center
     x = (base.width - logo.width) // 2
 
-    # ✅ Vertical center INSIDE header band
+    # Vertical center INSIDE header band
     header_height = h["max_height"]
     y = h["top_margin"] + (header_height - logo.height) // 2
 
@@ -1261,7 +1261,7 @@ class App(tk.Tk):
             # Overlay template artwork
             base.paste(template_img, (0, 0), template_img)
 
-            # 🔒 HARD ROUND FINAL IMAGE (prevents ALL bleed)
+            # HARD ROUND FINAL IMAGE (prevents ALL bleed)
             base = apply_rounded_mask(base, radius=22)
 
             if self.logo_image or self.logo_path:
@@ -1552,13 +1552,13 @@ class App(tk.Tk):
     def fetch_system_icons_thread(self, query, search_id):
         results = []
 
-        # 1️⃣ Search system logo pack
+        # Search system logo pack
         if self.icon_pack_dir and os.path.isdir(self.icon_pack_dir):
             results.extend(
                 search_system_icons(query, self.icon_pack_dir)
             )
 
-        # 2️⃣ Search cached web logos
+        # Search cached web logos
         if self.search_cached_logos.get() and os.path.isdir(WEB_LOGO_DIR):
             results.extend(
                 search_system_icons(query, WEB_LOGO_DIR)
@@ -1804,7 +1804,7 @@ class App(tk.Tk):
         try:
             img = load_image_from_url(url)
 
-            # ✅ ONLY web images are cached (posters go to web-images/posters)
+            # ONLY web images are cached (posters go to web-images/posters)
             self.selected_poster_image = maybe_cache_web_image(
                 img, url, kind="poster"
             )
