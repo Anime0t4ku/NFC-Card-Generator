@@ -3,6 +3,7 @@
 **NFC Card Generator** is a Python-based GUI application for generating **print-ready NFC card artwork** using predefined visual templates.  
 It supports **games, movies, and TV shows**, allowing you to browse, preview, and combine artwork sources to create consistent NFC card images with minimal manual adjustment.  
 The tool is designed around **repeatability, flexibility, and a keyboard-friendly workflow**, making it ideal for physical NFC card projects, retro collections, and media-based launch or display systems.
+
 ![NFC Cards](assets/NFC-Cards.png)
 ---
 
