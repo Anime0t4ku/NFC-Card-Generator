@@ -127,6 +127,9 @@ API_KEY = None        # SteamGridDB
 TMDB_API_KEY = None   # TMDB
 TMDB_IMG_BASE = "https://image.tmdb.org/t/p/original"
 WEB_IMAGE_DIR = "web-images"
+WEB_POSTER_DIR = os.path.join(WEB_IMAGE_DIR, "posters")
+WEB_LOGO_DIR = os.path.join(WEB_IMAGE_DIR, "logos")
+
 
 
 # ---------------- CONFIG HELPERS ----------------
@@ -158,12 +161,28 @@ def save_output_dir(path):
     cfg["output_directory"] = path
     save_config(cfg)
 
-def load_cache_web_images():
-    return load_config().get("cache_web_images", False)
+def load_cache_posters():
+    return load_config().get("cache_web_posters", False)
 
-def save_cache_web_images(value: bool):
+def save_cache_posters(value: bool):
     cfg = load_config()
-    cfg["cache_web_images"] = value
+    cfg["cache_web_posters"] = value
+    save_config(cfg)
+
+def load_cache_logos():
+    return load_config().get("cache_web_logos", False)
+
+def save_cache_logos(value: bool):
+    cfg = load_config()
+    cfg["cache_web_logos"] = value
+    save_config(cfg)
+
+def load_search_cached_logos():
+    return load_config().get("search_cached_web_logos", False)
+
+def save_search_cached_logos(value: bool):
+    cfg = load_config()
+    cfg["search_cached_web_logos"] = value
     save_config(cfg)
 
 def load_icon_pack_dir():
@@ -283,22 +302,27 @@ def fit_inside(img, max_w, max_h):
 
     return canvas
 
-def maybe_cache_web_image(img, url):
-    if not load_cache_web_images():
+def maybe_cache_web_image(img, url, kind="poster"):
+    if kind == "poster" and not load_cache_posters():
+        return img
+    if kind == "logo" and not load_cache_logos():
         return img
 
-    os.makedirs(WEB_IMAGE_DIR, exist_ok=True)
+    base_dir = WEB_LOGO_DIR if kind == "logo" else WEB_POSTER_DIR
+    os.makedirs(base_dir, exist_ok=True)
 
+    # Always normalize cached web images to PNG
     name = os.path.basename(url.split("?")[0])
-    if not name.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
-        name += ".png"
+    name = os.path.splitext(name)[0] + ".png"
 
-    path = os.path.join(WEB_IMAGE_DIR, name)
+    path = os.path.join(base_dir, name)
 
     try:
-        img.save(path)
-    except Exception:
-        pass
+        img = img.convert("RGBA")
+        img.save(path, format="PNG")  # 🔒 explicit format fixes JPG/WebP issues
+        print(f"Cached web image → {path}")
+    except Exception as e:
+        print("Failed to cache web image:", e)
 
     return img
 
@@ -309,8 +333,7 @@ def load_image_from_url(url, timeout=10):
     r = requests.get(url, timeout=timeout)
     r.raise_for_status()
 
-    img = Image.open(BytesIO(r.content)).convert("RGBA")
-    return maybe_cache_web_image(img, url)
+    return Image.open(BytesIO(r.content)).convert("RGBA")
 
 def cover_image(img, w, h):
     ratio = max(w / img.width, h / img.height)
@@ -510,14 +533,18 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.1.0 by Anime0t4ku")
+        self.title("NFC Card Generator v2.1.2 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
 
         self.logo_path = None
         self.logo_image = None
-        self.cache_web_images = tk.BooleanVar(value=load_cache_web_images())
+        self.cache_web_posters = tk.BooleanVar(value=load_cache_posters())
+        self.cache_web_logos = tk.BooleanVar(value=load_cache_logos())
+        self.search_cached_logos = tk.BooleanVar(
+            value=load_search_cached_logos()
+        )
 
         self.output_image = None
         self.output_dir = load_output_dir()
@@ -649,7 +676,12 @@ class App(tk.Tk):
             value="tmdb"
         ).pack(side="left")
 
-        if self.icon_pack_dir and os.path.isdir(self.icon_pack_dir):
+        logo_search_enabled = (
+                (self.icon_pack_dir and os.path.isdir(self.icon_pack_dir)) or
+                self.search_cached_logos.get()
+        )
+
+        if logo_search_enabled:
             ttk.Radiobutton(
                 self.source_frame,
                 text="System Logos",
@@ -888,7 +920,13 @@ class App(tk.Tk):
             bottom,
             text="Save Image",
             command=self.save
-        ).pack(side="left", padx=10)
+        ).pack(side="left", padx=(10, 5))
+
+        ttk.Button(
+            bottom,
+            text="Save As…",
+            command=self.save_as
+        ).pack(side="left", padx=(0, 10))
 
         self.open_folder_btn = ttk.Button(
             bottom,
@@ -1002,9 +1040,25 @@ class App(tk.Tk):
 
         ttk.Checkbutton(
             container,
-            text="Cache URL images",
-            variable=self.cache_web_images,
-            command=lambda: save_cache_web_images(self.cache_web_images.get())
+            text="Cache poster images from URLs",
+            variable=self.cache_web_posters,
+            command=lambda: save_cache_posters(self.cache_web_posters.get())
+        ).pack(anchor="w")
+
+        ttk.Checkbutton(
+            container,
+            text="Cache system logo images from URLs",
+            variable=self.cache_web_logos,
+            command=lambda: save_cache_logos(self.cache_web_logos.get())
+        ).pack(anchor="w")
+
+        ttk.Checkbutton(
+            container,
+            text="Include cached web logos in logo search",
+            variable=self.search_cached_logos,
+            command=lambda: save_search_cached_logos(
+                self.search_cached_logos.get()
+            )
         ).pack(anchor="w")
 
         ttk.Separator(container).pack(fill="x", pady=15)
@@ -1491,9 +1545,21 @@ class App(tk.Tk):
         self.render_with_current_template()
 
     def fetch_system_icons_thread(self, query, search_id):
-        icons = search_system_icons(query, self.icon_pack_dir)
+        results = []
 
-        for icon_path in icons:
+        # 1️⃣ Search system logo pack
+        if self.icon_pack_dir and os.path.isdir(self.icon_pack_dir):
+            results.extend(
+                search_system_icons(query, self.icon_pack_dir)
+            )
+
+        # 2️⃣ Search cached web logos
+        if self.search_cached_logos.get() and os.path.isdir(WEB_LOGO_DIR):
+            results.extend(
+                search_system_icons(query, WEB_LOGO_DIR)
+            )
+
+        for icon_path in results:
             if search_id != self.search_id:
                 return
 
@@ -1601,6 +1667,31 @@ class App(tk.Tk):
         self.output_image.save(os.path.join(self.output_dir, filename))
         self.show_status("Image saved")
 
+    def save_as(self):
+        if not self.output_image:
+            return
+
+        default_name = sanitize_filename(self.current_game_title or "nfc_card")
+        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            initialfile=f"{default_name}_{ts}.png",
+            filetypes=[("PNG Image", "*.png")]
+        )
+
+        if not file_path:
+            return
+
+        try:
+            self.output_image.save(file_path)
+            self.show_status("Image saved")
+        except Exception as e:
+            messagebox.showerror(
+                "Error",
+                f"Failed to save image:\n{e}"
+            )
+
     def pick_game(self, games):
         d = tk.Toplevel(self)
         d.title("Select Game")
@@ -1692,9 +1783,11 @@ class App(tk.Tk):
             return
 
         try:
-            self.logo_image = load_image_from_url(url)
+            img = load_image_from_url(url)
+            self.logo_image = maybe_cache_web_image(img, url, kind="logo")
             self.logo_path = None
             self.render_with_current_template()
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load logo:\n{e}")
 
@@ -1706,7 +1799,11 @@ class App(tk.Tk):
         try:
             img = load_image_from_url(url)
 
-            self.selected_poster_image = img
+            # ✅ ONLY web images are cached (posters go to web-images/posters)
+            self.selected_poster_image = maybe_cache_web_image(
+                img, url, kind="poster"
+            )
+
             self.poster_orientation = (
                 "horizontal" if img.width > img.height else "vertical"
             )
@@ -1718,9 +1815,9 @@ class App(tk.Tk):
 
             self.render_with_current_template()
 
-
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load poster:\n{e}")
+
 
 # ---------------- RUN ----------------
 
