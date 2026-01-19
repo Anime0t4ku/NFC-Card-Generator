@@ -317,6 +317,20 @@ def apply_rounded_corners(img, radius):
     out.paste(img, (0, 0), mask)
     return out
 
+def apply_rounded_mask(img, radius):
+    mask = Image.new("L", img.size, 0)
+    draw = ImageDraw.Draw(mask)
+
+    draw.rounded_rectangle(
+        (2, 2, img.width - 2, img.height - 2),
+        radius=radius - 2,
+        fill=255
+    )
+
+    out = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    out.paste(img, (0, 0), mask)
+    return out
+
 # --- HORIZONTAL HELPERS ---
 
 def cover_image_left(img, w, h):
@@ -398,7 +412,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.0 by Anime0t4ku")
+        self.title("NFC Card Generator v2.0.1 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -540,7 +554,7 @@ class App(tk.Tk):
         if self.icon_pack_dir and os.path.isdir(self.icon_pack_dir):
             ttk.Radiobutton(
                 self.source_frame,
-                text="System Icons",
+                text="System Logos",
                 variable=self.source_var,
                 value="system"
             ).pack(side="left")
@@ -1073,27 +1087,33 @@ class App(tk.Tk):
             return
         template_img = Image.open(resource_path(cfg["image_path"])).convert("RGBA")
 
+        # ---------------- TEMPLATE 3 ----------------
         if cfg["mode"] == "layered":
             base = Image.new("RGBA", template_img.size, (0, 0, 0, 0))
 
             if self.selected_poster_image:
-                if self.crop_mode.get() == "center":
-                    poster = fit_to_width(self.selected_poster_image, CLEAR_W)
-                else:
-                    cropped = crop(self.selected_poster_image, CLEAR_W, T3_MAX_HEIGHT)
-                    poster = force_vertical_overflow(
-                        cropped,
-                        T3_MAX_HEIGHT + T3_OVERFLOW_PAD
-                    )
+                # Visible poster area = from poster_y to bottom
+                visible_h = template_img.height - cfg["poster_y"]
 
-                x = (template_img.width - poster.width) // 2
-                base.paste(poster, (x, cfg["poster_y"]))
+                # Crop poster EXACTLY to visible area
+                poster = crop(self.selected_poster_image, CLEAR_W, visible_h)
 
+                # Center horizontally
+                x = (template_img.width - CLEAR_W) // 2
+
+                # Paste poster
+                base.paste(poster, (x, cfg["poster_y"]), poster)
+
+            # Overlay template artwork
             base.paste(template_img, (0, 0), template_img)
+
+            # 🔒 HARD ROUND FINAL IMAGE (prevents ALL bleed)
+            base = apply_rounded_mask(base, radius=22)
 
             if self.logo_image or self.logo_path:
                 apply_header_logo(base, self.logo_image or self.logo_path, cfg)
 
+        # ---------------- TEMPLATE 4 & 5 ----------------
         elif cfg["mode"] == "framed-top-logo":
             base = template_img.copy()
 
@@ -1105,6 +1125,7 @@ class App(tk.Tk):
             if self.logo_image or self.logo_path:
                 apply_top_center_logo(base, self.logo_image or self.logo_path, cfg)
 
+        # ---------------- TEMPLATE 1 & 2 ----------------
         else:
             base = template_img.copy()
 
