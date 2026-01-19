@@ -35,19 +35,19 @@ T4_POSTER_H = 834
 T4_POSTER_Y = 80
 
 TEMPLATES = {
-    "Template 1": {
+    "Black with Pins": {
         "image_path": "templates/template_1.png",
         "center": {"x": 10, "y": 59, "w": 597, "h": 855},
         "footer": {"height": 90, "logo_height": 46, "logo_margin": 25},
         "mode": "framed"
     },
-    "Template 2": {
+    "White with Pins": {
         "image_path": "templates/template_2.png",
         "center": {"x": 14, "y": 63, "w": 591, "h": 849},
         "footer": {"height": 90, "logo_height": 46, "logo_margin": 25},
         "mode": "framed"
     },
-    "Template 3": {
+    "HuCard Style": {
         "image_path": "templates/template_3.png",
         "poster_y": 120,
         "header_logo": {
@@ -58,17 +58,17 @@ TEMPLATES = {
         },
         "mode": "layered"
     },
-    "Template 4": {
+    "Black": {
         "image_path": "templates/template_4.png",
         "header_logo": {"max_height": 62, "top_margin": 10},
         "mode": "framed-top-logo"
     },
-    "Template 5": {
+    "White": {
         "image_path": "templates/template_5.png",
         "header_logo": {"max_height": 62, "top_margin": 10},
         "mode": "framed-top-logo"
     },
-    "Template 6": {
+    "Poster Only": {
         "image_path": "templates/template_6.png",
         "size": {"w": 619, "h": 994},
         "corner_radius": 22,
@@ -412,7 +412,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.0.1 by Anime0t4ku")
+        self.title("NFC Card Generator v2.0.2 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -425,7 +425,7 @@ class App(tk.Tk):
         self.output_dir = load_output_dir()
         self.icon_pack_dir = load_icon_pack_dir()
 
-        self.template_var = tk.StringVar(value="Template 1")
+        self.template_var = tk.StringVar(value="Black with Pins")
         self.crop_mode = tk.StringVar(value="center")
         self.crop_offset = tk.IntVar(value=0)
         self.source_var = tk.StringVar(value="steam")  # steam | tmdb
