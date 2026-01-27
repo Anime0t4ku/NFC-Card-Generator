@@ -533,13 +533,13 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.1.3 by Anime0t4ku")
+        self.title("NFC Card Generator v2.1.5 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
-
         self.logo_path = None
         self.logo_image = None
+        self.logo_name = None
         self.cache_web_posters = tk.BooleanVar(value=load_cache_posters())
         self.cache_web_logos = tk.BooleanVar(value=load_cache_logos())
         self.search_cached_logos = tk.BooleanVar(
@@ -565,9 +565,124 @@ class App(tk.Tk):
         self.status_after_id = None
         self.search_id = 0
 
+        self.source_state = {
+            "steam": {"query": "", "thumbs": [], "scroll": 0.0},
+            "tmdb": {"query": "", "thumbs": [], "scroll": 0.0},
+            "system": {"query": "", "thumbs": [], "scroll": 0.0},
+        }
+
         self.build_ui()
         self.update_output_folder_button()
 
+    def set_logo_name_from_path(self, path):
+        if not path:
+            self.logo_name = None
+            return
+
+        name = os.path.splitext(os.path.basename(path))[0]
+        self.logo_name = sanitize_filename(name)
+
+    def save_current_source_state(self):
+        src = self.source_var.get()
+        state = self.source_state[src]
+
+        state["query"] = self.game_entry.get()
+        state["scroll"] = self.canvas.yview()[0]
+
+    def restore_source_state(self):
+        src = self.source_var.get()
+        state = self.source_state[src]
+
+        # Restore search box
+        self.game_entry.delete(0, tk.END)
+        if state["query"]:
+            self.game_entry.insert(0, state["query"])
+
+        # Clear thumbnails
+        for w in self.thumb_frame.winfo_children():
+            w.destroy()
+
+        self.thumb_imgs.clear()
+
+        # Restore thumbnails
+        for item in state["thumbs"]:
+            self._restore_thumb(src, item)
+
+        self.after(50, lambda: self.canvas.yview_moveto(state["scroll"]))
+
+    def on_source_change(self):
+        self.save_current_source_state()
+        self.restore_source_state()
+
+    def _restore_thumb(self, src, item):
+        if src == "steam":
+            grid, data = item
+            self._add_steam_thumb_no_cache(grid, data)
+        elif src == "tmdb":
+            self._add_tmdb_thumb_no_cache(item)
+        elif src == "system":
+            data, path = item
+            self._add_system_icon_thumb_no_cache(data, path)
+
+    def _add_steam_thumb_no_cache(self, grid, data):
+        i = len(self.thumb_imgs)
+
+        img = Image.open(BytesIO(data)).convert("RGBA")
+        img = img.resize((THUMB_W, THUMB_H), Image.LANCZOS)
+
+        tk_img = ImageTk.PhotoImage(img)
+        self.thumb_imgs.append(tk_img)
+
+        ttk.Button(
+            self.thumb_frame,
+            image=tk_img,
+            command=lambda g=grid: self.apply_steam_poster(g)
+        ).grid(
+            row=(i // THUMBS_PER_ROW) + 1,
+            column=i % THUMBS_PER_ROW,
+            padx=5,
+            pady=5
+        )
+
+    def _add_tmdb_thumb_no_cache(self, data):
+        i = len(self.thumb_imgs)
+
+        img = Image.open(BytesIO(data)).convert("RGBA")
+        img = img.resize((THUMB_W, THUMB_H), Image.LANCZOS)
+
+        tk_img = ImageTk.PhotoImage(img)
+        self.thumb_imgs.append(tk_img)
+
+        ttk.Button(
+            self.thumb_frame,
+            image=tk_img,
+            command=lambda d=data: self.apply_tmdb_poster(d)
+        ).grid(
+            row=(i // THUMBS_PER_ROW) + 1,
+            column=i % THUMBS_PER_ROW,
+            padx=5,
+            pady=5
+        )
+
+    def _add_system_icon_thumb_no_cache(self, data, path):
+        i = len(self.thumb_imgs)
+
+        img = Image.open(BytesIO(data)).convert("RGBA")
+        img = fit_inside(img, ICON_THUMB_SIZE, ICON_THUMB_SIZE)
+
+        tk_img = ImageTk.PhotoImage(img)
+        self.thumb_imgs.append(tk_img)
+
+        ttk.Button(
+            self.thumb_frame,
+            image=tk_img,
+            command=lambda p=path: self.apply_system_icon(p)
+        ).grid(
+            row=(i // THUMBS_PER_ROW) + 1,
+            column=i % THUMBS_PER_ROW,
+            padx=5,
+            pady=5
+        )
 
     def ensure_api_key(self, service="steamgriddb"):
         global API_KEY, TMDB_API_KEY
@@ -666,14 +781,16 @@ class App(tk.Tk):
             self.source_frame,
             text="SteamGridDB",
             variable=self.source_var,
-            value="steam"
+            value="steam",
+            command=self.on_source_change
         ).pack(side="left")
 
         ttk.Radiobutton(
             self.source_frame,
             text="TMDB",
             variable=self.source_var,
-            value="tmdb"
+            value="tmdb",
+            command=self.on_source_change
         ).pack(side="left")
 
         logo_search_enabled = (
@@ -686,7 +803,8 @@ class App(tk.Tk):
                 self.source_frame,
                 text="System Logos",
                 variable=self.source_var,
-                value="system"
+                value="system",
+                command=self.on_source_change
             ).pack(side="left")
 
     def choose_icon_pack_dir(self):
@@ -1312,6 +1430,7 @@ class App(tk.Tk):
 
     def search(self):
         query = self.game_entry.get().strip()
+        self.source_state[self.source_var.get()]["thumbs"].clear()
         if not query:
             return
 
@@ -1382,16 +1501,19 @@ class App(tk.Tk):
             if w not in (self.loading_label, self.placeholder_label):
                 w.destroy()
 
-        self.placeholder_label.grid_forget()
+        if self.placeholder_label.winfo_exists():
+            self.placeholder_label.grid_forget()
+
         self.thumb_imgs.clear()
         self.canvas.yview_moveto(0)
 
-        self.loading_label.grid(
-            row=0,
-            column=0,
-            columnspan=THUMBS_PER_ROW,
-            pady=15
-        )
+        if self.loading_label.winfo_exists():
+            self.loading_label.grid(
+                row=0,
+                column=0,
+                columnspan=THUMBS_PER_ROW,
+                pady=15
+            )
 
     # -------- STEAMGRIDDB THUMBS --------
 
@@ -1413,8 +1535,10 @@ class App(tk.Tk):
                 pass
 
         def finish():
-            self.loading_label.grid_forget()
-            if not self.thumb_imgs:
+            if self.loading_label.winfo_exists():
+                self.loading_label.grid_forget()
+
+            if not self.thumb_imgs and self.placeholder_label.winfo_exists():
                 self.placeholder_label.grid(
                     row=0,
                     column=0,
@@ -1425,9 +1549,14 @@ class App(tk.Tk):
         self.after(150, finish)
 
     def add_steam_thumb_from_data(self, grid, data):
-        self.placeholder_label.grid_forget()
+        if self.placeholder_label.winfo_exists():
+            self.placeholder_label.grid_forget()
+
+        # store for source persistence
+        self.source_state["steam"]["thumbs"].append((grid, data))
 
         i = len(self.thumb_imgs)
+
         img = Image.open(BytesIO(data)).convert("RGBA")
 
         # Use vertical poster thumbnails (same as TMDB)
@@ -1511,8 +1640,10 @@ class App(tk.Tk):
             pass
 
         def finish():
-            self.loading_label.grid_forget()
-            if not self.thumb_imgs:
+            if self.loading_label.winfo_exists():
+                self.loading_label.grid_forget()
+
+            if not self.thumb_imgs and self.placeholder_label.winfo_exists():
                 self.placeholder_label.grid(
                     row=0,
                     column=0,
@@ -1523,9 +1654,14 @@ class App(tk.Tk):
         self.after(150, finish)
 
     def add_tmdb_thumb_from_data(self, data):
-        self.placeholder_label.grid_forget()
+        if self.placeholder_label.winfo_exists():
+            self.placeholder_label.grid_forget()
+
+        # store for source persistence
+        self.source_state["tmdb"]["thumbs"].append(data)
 
         i = len(self.thumb_imgs)
+
         img = Image.open(BytesIO(data)).convert("RGBA")
         img = img.resize((THUMB_W, THUMB_H), Image.LANCZOS)
         tk_img = ImageTk.PhotoImage(img)
@@ -1582,9 +1718,14 @@ class App(tk.Tk):
         self.after(150, self.finish_thumb_load)
 
     def add_system_icon_thumb(self, data, path):
-        self.placeholder_label.grid_forget()
+        if self.placeholder_label.winfo_exists():
+            self.placeholder_label.grid_forget()
+
+        # store for source persistence
+        self.source_state["system"]["thumbs"].append((data, path))
 
         i = len(self.thumb_imgs)
+
         img = Image.open(BytesIO(data)).convert("RGBA")
 
         # Square system icon thumbnails
@@ -1606,13 +1747,15 @@ class App(tk.Tk):
 
     def apply_system_icon(self, path):
         self.logo_image = Image.open(path).convert("RGBA")
-        self.logo_path = None
+        self.logo_path = path
+        self.set_logo_name_from_path(path)
         self.render_with_current_template()
 
     def finish_thumb_load(self):
-        self.loading_label.grid_forget()
+        if self.loading_label.winfo_exists():
+            self.loading_label.grid_forget()
 
-        if not self.thumb_imgs:
+        if not self.thumb_imgs and self.placeholder_label.winfo_exists():
             self.placeholder_label.grid(
                 row=0,
                 column=0,
@@ -1666,8 +1809,13 @@ class App(tk.Tk):
             return
 
         name = sanitize_filename(self.current_game_title or "nfc_card")
+
+        parts = [name]
+        if self.logo_name:
+            parts.append(self.logo_name)
+
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        filename = f"{name}_{ts}.png"
+        filename = "_".join(parts) + f"_{ts}.png"
 
         self.output_image.save(os.path.join(self.output_dir, filename))
         self.show_status("Image saved")
@@ -1677,7 +1825,13 @@ class App(tk.Tk):
             return
 
         default_name = sanitize_filename(self.current_game_title or "nfc_card")
+
+        parts = [default_name]
+        if self.logo_name:
+            parts.append(self.logo_name)
+
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        default_name = "_".join(parts)
 
         file_path = filedialog.asksaveasfilename(
             defaultextension=".png",
@@ -1723,10 +1877,13 @@ class App(tk.Tk):
         return result["game"]
 
     def load_logo(self):
-        p = filedialog.askopenfilename(filetypes=[("PNG", "*.png")])
+        p = filedialog.askopenfilename(
+            filetypes=[("Images", "*.png *.jpg *.jpeg *.webp")]
+        )
         if p:
             self.logo_image = Image.open(p).convert("RGBA")
-            self.logo_path = None
+            self.logo_path = p
+            self.set_logo_name_from_path(p)
             self.render_with_current_template()
 
     def ask_url(self, title):
@@ -1789,9 +1946,16 @@ class App(tk.Tk):
 
         try:
             img = load_image_from_url(url)
-            self.logo_image = maybe_cache_web_image(img, url, kind="logo")
+            cached = maybe_cache_web_image(img, url, kind="logo")
+
+            self.logo_image = cached
             self.logo_path = None
+
+            name = os.path.splitext(os.path.basename(url.split("?")[0]))[0]
+            self.logo_name = sanitize_filename(name)
+
             self.render_with_current_template()
+
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load logo:\n{e}")
