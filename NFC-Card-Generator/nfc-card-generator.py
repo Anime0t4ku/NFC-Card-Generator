@@ -1817,7 +1817,7 @@ class App(tk.Tk):
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         filename = "_".join(parts) + f"_{ts}.png"
 
-        self.output_image.save(os.path.join(self.output_dir, filename))
+        self.output_image.save(os.path.join(self.output_dir, filename), dpi=(300,300))
         self.show_status("Image saved")
 
     def save_as(self):
