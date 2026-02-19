@@ -534,7 +534,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.1.7 by Anime0t4ku")
+        self.title("NFC Card Generator v2.1.8 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -1793,10 +1793,15 @@ class App(tk.Tk):
                 subprocess.Popen(["open", self.output_dir])
 
             else:
-                # Linux – universal method
-                import pathlib
-                folder_url = pathlib.Path(self.output_dir).resolve().as_uri()
-                webbrowser.open(folder_url)
+                # Linux — explicitly pass environment
+                env = os.environ.copy()
+
+                subprocess.Popen(
+                    ["gio", "open", self.output_dir],
+                    env=env,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
 
         except Exception as e:
             messagebox.showerror(
