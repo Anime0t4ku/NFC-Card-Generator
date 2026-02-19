@@ -1779,7 +1779,10 @@ class App(tk.Tk):
 
     def open_output_dir(self):
         if not self.output_dir or not os.path.isdir(self.output_dir):
-            messagebox.showerror("Error", "Output folder is not set or does not exist.")
+            messagebox.showerror(
+                "Error",
+                "Output folder is not set or does not exist."
+            )
             return
 
         try:
@@ -1790,22 +1793,16 @@ class App(tk.Tk):
                 subprocess.Popen(["open", self.output_dir])
 
             else:
-                # Linux — try xdg-open first
-                if shutil.which("xdg-open"):
-                    subprocess.Popen(["xdg-open", self.output_dir])
-                # Fallbacks for minimal environments
-                elif shutil.which("gio"):
-                    subprocess.Popen(["gio", "open", self.output_dir])
-                elif shutil.which("nautilus"):
-                    subprocess.Popen(["nautilus", self.output_dir])
-                else:
-                    messagebox.showerror(
-                        "Error",
-                        "Could not detect a file manager to open the folder."
-                    )
+                # Linux – universal method
+                import pathlib
+                folder_url = pathlib.Path(self.output_dir).resolve().as_uri()
+                webbrowser.open(folder_url)
 
         except Exception as e:
-            messagebox.showerror("Error", f"Could not open folder:\n{e}")
+            messagebox.showerror(
+                "Error",
+                f"Could not open folder:\n{e}"
+            )
 
     def update_output_folder_button(self):
         if self.output_dir and os.path.isdir(self.output_dir):
