@@ -1,30 +1,28 @@
 # NFC Card Generator
 
-**NFC Card Generator** is a Python-based GUI application for generating **print-ready NFC card artwork** using predefined visual templates.  
-It supports **games, movies, and TV shows**, allowing you to browse, preview, and combine artwork sources to create consistent NFC card images with minimal manual adjustment.  
-The tool is designed around **repeatability, flexibility, and a keyboard-friendly workflow**, making it ideal for physical NFC card projects, retro collections, and media-based launch or display systems.
+NFC Card Generator is a desktop application for creating **print-ready NFC card artwork** using predefined visual templates.
+
+It supports **games (SteamGridDB)** and **movies / TV shows (TMDB)**, allowing you to search, preview, and generate consistent card artwork with minimal manual adjustment.
+
+Designed for physical NFC projects, retro collections, and media launch systems.
 
 ![NFC Cards](assets/NFC-Cards.png)
----
-
-Windows users can download the executable from the latest stable release or download the nightly build below.  
-Mac and Linux users need to use the Python script (for now), see details below for requirements.
 
 ---
 
+## Download
 
-## Nightly builds
+Pre-built executables are available for Windows and Linux.
 
-### Download the latest builds from continuous integration:
+### Nightly Builds
 
-| Name                    | Platform | Status                            | File                                        |
-|-------------------------|----------|-----------------------------------|---------------------------------------------|
-| NFC Card Generator      | Windows  | [![Build Status][Build]][Actions] | [![Emulator][Download]][NFC Card Generator] |
+| Name | Platform | Status | File |
+|------|----------|--------|------|
+| NFC Card Generator | Windows | [![Build Status][Build]][Actions] | [Download Windows](https://github.com/Anime0t4ku/NFC-Card-Generator/releases/download/Pre-release/NFC-Card-Generator-Windows-x86_64.zip) |
+| NFC Card Generator | Linux | [![Build Status][Build]][Actions] | [Download Linux](https://github.com/Anime0t4ku/NFC-Card-Generator/releases/download/Pre-release/NFC-Card-Generator-Linux-x86_64.tar.gz) |
 
-[Actions]: https://github.com/Anime0t4ku/NFC-Card-Generator/actions/workflows/build.yml
-[Build]: https://github.com/Anime0t4ku/NFC-Card-Generator/actions/workflows/build.yml/badge.svg
-[Download]: https://img.shields.io/badge/Download-blue
-[NFC Card Generator]: https://github.com/Anime0t4ku/NFC-Card-Generator/releases/download/Pre-release/NFC-Card-Generator-Windows-x86_64.zip
+[Actions]: https://github.com/Anime0t4ku/NFC-Card-Generator/actions/workflows/build.yml  
+[Build]: https://github.com/Anime0t4ku/NFC-Card-Generator/actions/workflows/build.yml/badge.svg  
 
 ---
 
@@ -42,196 +40,105 @@ Mac and Linux users need to use the Python script (for now), see details below f
 
 ## Features
 
-### General
-- Desktop GUI built with Tkinter
-- Live preview of the generated card
-- Automatic artwork scaling while preserving aspect ratio
-- Template-aware image placement using fixed clear areas
-- Manual crop adjustment when needed
-- Keyboard-friendly workflow (Enter to search, Enter to load URLs)
-- Persistent settings stored in `config.json`
-- Add custom icon pack
+- Desktop GUI built with Tkinter  
+- Live card preview  
+- Multiple predefined base templates  
+- Automatic image scaling and positioning  
+- Manual crop adjustment  
+- Optional header or footer system logos  
+- Unified search workflow  
+- Persistent settings via `config.json`  
+
+### Artwork Sources
+
+**SteamGridDB**
+- Game search and poster selection  
+- Vertical poster filtering  
+
+**TMDB**
+- Unified movie and TV search  
+- Official poster retrieval  
+- Automatic release year detection  
+
+### Poster & Logo Support
+
+- Import posters from file or URL  
+- Import system logos from file or URL  
+- Optional logo usage  
+- Automatic logo scaling per template  
+
+### Output
+
+- Configurable output directory  
+- Timestamped filenames  
+- One-click access to the output folder  
+- Optional caching of URL images  
 
 ---
 
-### Game Artwork (SteamGridDB)
-- Search and select games via SteamGridDB
-- Multiple community-created posters per game
-- Vertical poster filtering for card-friendly layouts
-- Asynchronous image loading with no UI freezing
+## Supported Platforms
+
+### Windows
+Pre-built executable provided.  
+No Python installation required.
+
+### Linux
+Pre-built executable provided.  
+No Python installation required.  
+Requires a graphical environment (X11 or Wayland).
+
+Run on Linux:
+
+```bash
+chmod +x NFC-Card-Generator
+./NFC-Card-Generator
+```
 
 ---
 
-### Movie & TV Artwork (TMDB)
-- Unified search for movies and TV shows
-- Official posters retrieved directly from TMDB
-- Displays all available poster variants per title
-- English posters preferred with automatic fallback
-- Automatic release year detection for accurate naming
+## Running From Source
 
----
+Only required if you want to run or modify the script directly.
 
-### Unified Search Workflow
-- Single search bar for all content types
-- Source selector for SteamGridDB or TMDB
-- Title picker dialog for search results
-- Shared thumbnail grid for all artwork sources
-- Posters can be browsed without selecting a system logo first
+### Requirements
 
----
-
-### Templates & Rendering
-- Supports multiple predefined base templates
-- Framed and layered layout styles
-- Header and footer logo placement (optional)
-- Automatic logo scaling and alignment per template
-- Template previews shown directly in the UI
-
----
-
-### System Logos
-- Import system logos from disk
-- Load system logos directly from HTTP(S) URLs
-- Optional logo usage, cards can be generated without a logo
-- Logos are automatically resized and positioned per template
-
----
-
-### Poster Image Support
-- Import custom poster images from disk
-- Load poster images directly from HTTP(S) URLs
-- Automatic orientation detection (horizontal / vertical)
-- Crop controls adapt based on image orientation
-- Works without any API usage
-- Suitable for fan art or custom designs
-
----
-
-### Output & File Handling
-- Configurable output directory
-- Automatic saving to the selected output folder
-- One-click access to the output folder
-- Timestamped filenames to prevent overwrites
-- Movie and TV titles include release year in filenames
-- Optional caching of URL-loaded images to disk
-
----
-
-### API Key Management
-- SteamGridDB and TMDB API keys stored locally
-- Keys requested only when required
-- Separate handling per service
-- No hardcoded credentials
-
----
-
-## Base Templates
-
-The application currently includes **five base templates**, each with its own layout and visual style.
-Templates are designed with fixed clear areas to ensure correct artwork placement and consistent results.
-
----
-
-## Included Assets
-
-This repository includes a **system logo pack** containing commonly used platform and console logos.
-
-These logos are intended to be used directly with the included templates and are positioned automatically to match each template’s layout.
-
----
-
-## Requirements
-
-- Python 3.9 or newer
+- Python 3.9+
 - Pillow
 - Requests
-- SteamGridDB API key (for game artwork)
-- TMDB API key (for movie and TV artwork)
+- Tkinter (may need manual install on some Linux distros)
+
+Install dependencies:
+
+```bash
+pip install pillow requests
+```
+
+Run:
+
+```bash
+python nfc-card-generator.py
+```
 
 ---
 
 ## API Keys
 
 ### SteamGridDB
-Used for searching and retrieving game artwork.
+Used for game artwork search.
 
-1. Create an account at https://www.steamgriddb.com
-2. Open your account settings
-3. Generate a personal API key
+1. Create an account at https://www.steamgriddb.com  
+2. Generate a personal API key  
 
----
+### TMDB
+Used for movie and TV poster search.
 
-### TMDB (The Movie Database)
-Used for searching and retrieving movie and TV posters.
-
-1. Create an account at https://www.themoviedb.org
-2. Go to Settings → API
-3. Generate an API key
+1. Create an account at https://www.themoviedb.org  
+2. Generate an API key  
 
 API keys are requested by the application when needed and stored locally.
-
----
-
-## Tkinter (Linux Users)
-
-On some Linux distributions, **Tkinter is not installed by default** and must be installed manually.
-
-Required package: `python3-pillow-tk`
-
-If Tkinter is missing, the application will fail to launch.
-
----
-
-## Installation
-
-Clone the repository:
-
-git clone https://github.com/yourusername/nfc-card-generator.git
-cd nfc-card-generator
-
-Install dependencies:
-
-pip install -r requirements.txt
-
-Run the application:
-
-python nfc-card-generator.py
-
----
-
-## Configuration
-
-On first launch, the application automatically creates a `config.json` file.
-
-Stored settings include:
-- Output directory
-- SteamGridDB API key
-- TMDB API key
-- URL image caching preference
-
-All settings persist between sessions.
-
----
-
-## Output Folder Behavior
-
-- When an output folder is set, generated images are saved automatically
-- No save dialog is shown during normal operation
-- A confirmation message appears after saving and disappears after a few seconds
-- An **Open Output Folder** button becomes available once a folder is configured
-
----
-
-## Notes
-
-- Images always maintain their original aspect ratio
-- Template clear areas are respected to avoid unwanted cropping
-- Logos are optional and template-aware
-- The project is intended for personal and hobbyist use
 
 ---
 
 ## License
 
 This project is released under the MIT License.
-You are free to modify, distribute, and use it for personal or commercial projects.
