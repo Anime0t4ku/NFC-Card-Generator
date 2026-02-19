@@ -10,6 +10,7 @@ import sys
 import subprocess
 import re
 import webbrowser
+import shutil
 from datetime import datetime
 
 def resource_path(relative_path):
