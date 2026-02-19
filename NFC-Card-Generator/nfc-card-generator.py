@@ -533,7 +533,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.1.6 by Anime0t4ku")
+        self.title("NFC Card Generator v2.1.7 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -1777,13 +1777,32 @@ class App(tk.Tk):
             self.show_status("Output folder set")
 
     def open_output_dir(self):
+        if not self.output_dir or not os.path.isdir(self.output_dir):
+            messagebox.showerror("Error", "Output folder is not set or does not exist.")
+            return
+
         try:
             if sys.platform.startswith("win"):
                 os.startfile(self.output_dir)
+
             elif sys.platform == "darwin":
                 subprocess.Popen(["open", self.output_dir])
+
             else:
-                subprocess.Popen(["xdg-open", self.output_dir])
+                # Linux — try xdg-open first
+                if shutil.which("xdg-open"):
+                    subprocess.Popen(["xdg-open", self.output_dir])
+                # Fallbacks for minimal environments
+                elif shutil.which("gio"):
+                    subprocess.Popen(["gio", "open", self.output_dir])
+                elif shutil.which("nautilus"):
+                    subprocess.Popen(["nautilus", self.output_dir])
+                else:
+                    messagebox.showerror(
+                        "Error",
+                        "Could not detect a file manager to open the folder."
+                    )
+
         except Exception as e:
             messagebox.showerror("Error", f"Could not open folder:\n{e}")
 
