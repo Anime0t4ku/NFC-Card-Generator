@@ -114,6 +114,42 @@ TEMPLATES = {
         },
         "corner_radius": 22,
         "mode": "full-poster-rounded"
+    },
+
+    "Bottom Logo Black Panel": {
+        "image_path": "templates/template_7.png",
+        "size": {
+            "w": 619,
+            "h": 994
+        },
+        "corner_radius": 22,
+        "panel": {
+            "logo_max_height": 50,
+            "logo_max_width": 270,
+            "padding": 3,
+            "outline_width": 6,
+            "bg_color": (0, 0, 0, 255),
+            "outline_color": (255, 255, 255, 255)
+        },
+        "mode": "full-poster-bottom-panel"
+    },
+
+    "Bottom Logo White Panel": {
+        "image_path": "templates/template_8.png",
+        "size": {
+            "w": 619,
+            "h": 994
+        },
+        "corner_radius": 22,
+        "panel": {
+            "logo_max_height": 50,
+            "logo_max_width": 270,
+            "padding": 3,
+            "outline_width": 6,
+            "bg_color": (255, 255, 255, 255),  # white panel
+            "outline_color": (0, 0, 0, 255)  # black outline
+        },
+        "mode": "full-poster-bottom-panel"
     }
 }
 
@@ -519,12 +555,103 @@ def apply_top_center_logo(base, logo, cfg):
     # Horizontal center
     x = (base.width - logo.width) // 2
 
-    # Vertical center INSIDE header band
+    # Vertical center inside header band
     header_height = h["max_height"]
     y = h["top_margin"] + (header_height - logo.height) // 2
 
     base.paste(logo, (x, y), logo)
 
+def draw_bottom_logo_panel(base, logo, panel_cfg):
+    if isinstance(logo, str):
+        logo = Image.open(logo).convert("RGBA")
+
+    max_h = panel_cfg["logo_max_height"]
+    max_w = panel_cfg.get("logo_max_width", 9999)
+    padding = panel_cfg["padding"]
+    outline_w = panel_cfg["outline_width"]
+
+    scale = min(
+        max_h / logo.height,
+        max_w / logo.width,
+        1  # prevent upscaling
+    )
+
+    new_w = int(logo.width * scale)
+    new_h = int(logo.height * scale)
+
+    logo = logo.resize((new_w, new_h), Image.LANCZOS)
+
+    extra_w = 40
+    extra_h = 18
+    radius = 22
+
+    inner_w = logo.width + padding * 2 + extra_w
+    inner_h = logo.height + padding * 2 + extra_h
+
+    outer_w = inner_w + outline_w * 2
+    outer_h = inner_h + outline_w * 2
+
+    # --- Create outer (white) ---
+    outer = Image.new("RGBA", (outer_w, outer_h), (0, 0, 0, 0))
+    draw_outer = ImageDraw.Draw(outer)
+
+    # White shape 
+    draw_outer.rectangle(
+        (0, radius, outer_w, outer_h),
+        fill=panel_cfg["outline_color"]
+    )
+    draw_outer.rectangle(
+        (radius, 0, outer_w - radius, radius),
+        fill=panel_cfg["outline_color"]
+    )
+    draw_outer.pieslice(
+        (0, 0, radius * 2, radius * 2),
+        180, 270,
+        fill=panel_cfg["outline_color"]
+    )
+    draw_outer.pieslice(
+        (outer_w - radius * 2, 0, outer_w, radius * 2),
+        270, 360,
+        fill=panel_cfg["outline_color"]
+    )
+
+    # --- Create inner (black) ---
+    inner = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
+    draw_inner = ImageDraw.Draw(inner)
+
+    draw_inner.rectangle(
+        (0, radius, inner_w, inner_h),
+        fill=panel_cfg["bg_color"]
+    )
+    draw_inner.rectangle(
+        (radius, 0, inner_w - radius, radius),
+        fill=panel_cfg["bg_color"]
+    )
+    draw_inner.pieslice(
+        (0, 0, radius * 2, radius * 2),
+        180, 270,
+        fill=panel_cfg["bg_color"]
+    )
+    draw_inner.pieslice(
+        (inner_w - radius * 2, 0, inner_w, radius * 2),
+        270, 360,
+        fill=panel_cfg["bg_color"]
+    )
+
+    # Paste inner centered inside outer
+    outer.paste(inner, (outline_w, outline_w), inner)
+
+    # --- Center logo ---
+    x_logo = (outer_w - logo.width) // 2
+    y_logo = (outer_h - logo.height) // 2
+    outer.paste(logo, (x_logo, y_logo), logo)
+
+    # --- Paste on card ---
+    x_panel = (base.width - outer_w) // 2
+    y_panel = base.height - outer_h
+
+    base.paste(outer, (x_panel, y_panel), outer)
+    
 # ---------------- GUI ----------------
 
 class App(tk.Tk):
@@ -537,7 +664,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.1.9 by Anime0t4ku")
+        self.title("NFC Card Generator v2.2.0 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -1405,6 +1532,41 @@ class App(tk.Tk):
                 if mode == "manual":
                     return cover_image_manual(img, w, h, self.crop_offset.get())
                 return cover_image(img, w, h)
+
+        # Template 7 – Full poster + bottom logo panel
+        if cfg.get("mode") == "full-poster-bottom-panel":
+
+            w = cfg["size"]["w"]
+            h = cfg["size"]["h"]
+
+            # Create base poster
+            if not self.selected_poster_image:
+                poster = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            else:
+                poster = crop(self.selected_poster_image, w, h)
+
+            # First round
+            poster = apply_rounded_corners(
+                poster,
+                cfg.get("corner_radius", 24)
+            )
+
+            # Draw panel
+            if self.logo_image or self.logo_path:
+                draw_bottom_logo_panel(
+                    poster,
+                    self.logo_image or self.logo_path,
+                    cfg["panel"]
+                )
+
+            poster = apply_rounded_corners(
+                poster,
+                cfg.get("corner_radius", 24)
+            )
+
+            self.output_image = poster
+            self.update_preview(poster)
+            return
 
         # Template 6 – full poster with rounded corners (no base template, no logo)
         if cfg.get("mode") == "full-poster-rounded":
