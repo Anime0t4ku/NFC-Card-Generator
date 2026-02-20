@@ -146,10 +146,26 @@ TEMPLATES = {
             "logo_max_width": 270,
             "padding": 3,
             "outline_width": 6,
-            "bg_color": (255, 255, 255, 255),  # white panel
-            "outline_color": (0, 0, 0, 255)  # black outline
+            "bg_color": (255, 255, 255, 255),
+            "outline_color": (0, 0, 0, 255)
         },
         "mode": "full-poster-bottom-panel"
+    },
+
+    "SV-001 (By R_NEES)": {
+        "image_path": "templates/template_9.png",
+        "corner_radius": 22,
+        "nls": {
+            "max_width": 220,
+            "max_height": 60,
+            "margin": 40
+        },
+        "system_logo": {
+            "max_width": 200,
+            "max_height": 60,
+            "margin": 40
+        },
+        "mode": "layered-dual-corner"
     }
 }
 
@@ -664,7 +680,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.2.0 by Anime0t4ku")
+        self.title("NFC Card Generator v2.3.0 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -685,6 +701,18 @@ class App(tk.Tk):
         self.crop_mode = tk.StringVar(value="center")
         self.crop_offset = tk.IntVar(value=0)
         self.source_var = tk.StringVar(value="steam")  # steam | tmdb
+
+        # --- Template 9 State ---
+        self.nfc_logo_color = tk.StringVar(value="white")
+        self.nfc_corner = tk.StringVar(value="top-right")
+        self.system_corner = tk.StringVar(value="bottom-left")
+
+        self.ALL_CORNERS = [
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right"
+        ]
 
         self.selected_poster_image = None
         self.poster_orientation = "vertical"
@@ -1013,24 +1041,42 @@ class App(tk.Tk):
 
         self.template_frame.bind("<Configure>", update_scrollregion)
 
-        # Horizontal mouse wheel
-        def on_mousewheel(event):
-            if sys.platform.startswith("win"):
-                self.template_canvas.xview_scroll(-1 * int(event.delta / 120), "units")
-            elif sys.platform == "darwin":
-                self.template_canvas.xview_scroll(-1 * int(event.delta / 2), "units")
+        # --- Proper hover-based scroll binding ---
 
-        def on_linux_scroll(event):
+        def _bind_template_scroll(event):
+            if sys.platform.startswith("linux"):
+                self.bind_all("<Button-4>", _template_scroll_linux)
+                self.bind_all("<Button-5>", _template_scroll_linux)
+            else:
+                self.bind_all("<MouseWheel>", _template_scroll)
+
+        def _unbind_template_scroll(event):
+            if sys.platform.startswith("linux"):
+                self.unbind_all("<Button-4>")
+                self.unbind_all("<Button-5>")
+            else:
+                self.unbind_all("<MouseWheel>")
+
+        def _template_scroll(event):
+            if sys.platform.startswith("win"):
+                self.template_canvas.xview_scroll(
+                    -1 * int(event.delta / 120), "units"
+                )
+            elif sys.platform == "darwin":
+                self.template_canvas.xview_scroll(
+                    -1 * int(event.delta), "units"
+                )
+
+        def _template_scroll_linux(event):
             if event.num == 4:
                 self.template_canvas.xview_scroll(-1, "units")
             elif event.num == 5:
                 self.template_canvas.xview_scroll(1, "units")
 
-        if sys.platform.startswith("linux"):
-            self.template_canvas.bind("<Button-4>", on_linux_scroll)
-            self.template_canvas.bind("<Button-5>", on_linux_scroll)
-        else:
-            self.template_canvas.bind("<MouseWheel>", on_mousewheel)
+        self.template_canvas.bind("<Enter>", _bind_template_scroll)
+        self.template_canvas.bind("<Leave>", _unbind_template_scroll)
+        self.template_frame.bind("<Enter>", _bind_template_scroll)
+        self.template_frame.bind("<Leave>", _unbind_template_scroll)
 
         # Build buttons
         for name, cfg in TEMPLATES.items():
@@ -1050,15 +1096,23 @@ class App(tk.Tk):
                 command=self.render_with_current_template
             ).pack(side="left", padx=8)
 
-    def build_crop_controls(self):
-        frame = ttk.LabelFrame(self, text="Poster Crop Mode")
-        frame.pack(pady=6)
+    def build_crop_row(self):
+
+        self.crop_row = ttk.Frame(self)
+        self.crop_row.pack(pady=6)
+
+        # ---- Crop Frame ----
+        self.crop_frame = ttk.LabelFrame(
+            self.crop_row,
+            text="Poster Crop Mode"
+        )
+        self.crop_frame.pack(side="left", padx=10)
 
         self.crop_buttons = {}
 
         for m in ("center", "top", "bottom", "manual"):
             btn = ttk.Radiobutton(
-                frame,
+                self.crop_frame,
                 text=m.capitalize(),
                 value=m,
                 variable=self.crop_mode,
@@ -1068,13 +1122,106 @@ class App(tk.Tk):
             self.crop_buttons[m] = btn
 
         self.crop_slider = ttk.Scale(
-            frame,
+            self.crop_frame,
             from_=0,
             to=1000,
             orient="horizontal",
             variable=self.crop_offset,
             command=lambda e: self.render_with_current_template()
         )
+
+        # ---- Template 9 Frame (hidden by default) ----
+        self.template9_frame = ttk.LabelFrame(
+            self.crop_row,
+            text="Template 9 Options"
+        )
+
+        self.build_template9_controls()
+
+        self.template9_visible = False
+
+    def build_template9_controls(self):
+
+        inner = ttk.Frame(self.template9_frame)
+        inner.pack(padx=10, pady=8)
+
+        # ---------------- NFC LOGO COLOR ----------------
+        color_frame = ttk.Frame(inner)
+        color_frame.pack(side="left", padx=15)
+
+        ttk.Label(color_frame, text="NFC Logo Color").pack(anchor="w")
+
+        ttk.Radiobutton(
+            color_frame,
+            text="Black",
+            variable=self.nfc_logo_color,
+            value="black",
+            command=self.render_with_current_template
+        ).pack(side="left")
+
+        ttk.Radiobutton(
+            color_frame,
+            text="White",
+            variable=self.nfc_logo_color,
+            value="white",
+            command=self.render_with_current_template
+        ).pack(side="left", padx=(6, 0))
+
+        # ---------------- NFC POSITION ----------------
+        nfc_pos_frame = ttk.Frame(inner)
+        nfc_pos_frame.pack(side="left", padx=15)
+
+        ttk.Label(nfc_pos_frame, text="NFC Position").pack(anchor="w")
+
+        self.nfc_corner_combo = ttk.Combobox(
+            nfc_pos_frame,
+            values=self.ALL_CORNERS,
+            textvariable=self.nfc_corner,
+            state="readonly",
+            width=14
+        )
+        self.nfc_corner_combo.pack()
+        self.nfc_corner_combo.bind(
+            "<<ComboboxSelected>>",
+            self.on_nfc_corner_change
+        )
+
+        # ---------------- SYSTEM LOGO POSITION ----------------
+        sys_pos_frame = ttk.Frame(inner)
+        sys_pos_frame.pack(side="left", padx=15)
+
+        ttk.Label(sys_pos_frame, text="System Position").pack(anchor="w")
+
+        self.system_corner_combo = ttk.Combobox(
+            sys_pos_frame,
+            values=self.ALL_CORNERS,
+            textvariable=self.system_corner,
+            state="readonly",
+            width=14
+        )
+        self.system_corner_combo.pack()
+        self.system_corner_combo.bind(
+            "<<ComboboxSelected>>",
+            lambda e: self.render_with_current_template()
+        )
+
+    # --------------------------------------------------
+    # Template 9 – Prevent corner conflicts
+    # --------------------------------------------------
+    def on_nfc_corner_change(self, event=None):
+
+        selected = self.nfc_corner.get()
+
+        # Remove selected NFC corner from system logo options
+        available = [c for c in self.ALL_CORNERS if c != selected]
+
+        self.system_corner_combo["values"] = available
+
+        # If system logo was on same corner, move it
+        if self.system_corner.get() == selected:
+            self.system_corner.set(available[0])
+
+        self.render_with_current_template()
 
     def update_crop_labels(self):
         if not hasattr(self, "crop_buttons"):
@@ -1089,7 +1236,7 @@ class App(tk.Tk):
 
     def build_ui(self):
         self.build_template_selector()
-        self.build_crop_controls()
+        self.build_crop_row()
 
         controls_outer = ttk.Frame(self)
         controls_outer.pack(pady=5, fill="x")
@@ -1169,19 +1316,80 @@ class App(tk.Tk):
         self.canvas = tk.Canvas(selector_container, width=520, height=750)
         self.canvas.pack(side="left")
 
-        sb = ttk.Scrollbar(selector_container, orient="vertical", command=self.canvas.yview)
+        sb = ttk.Scrollbar(
+            selector_container,
+            orient="vertical",
+            command=self.canvas.yview
+        )
         sb.pack(side="left", fill="y")
+
         self.canvas.configure(yscrollcommand=sb.set)
-        # Vertical scroll only when hovering thumbnail canvas
-        if sys.platform.startswith("linux"):
-            self.canvas.bind("<Button-4>", self._on_mousewheel)
-            self.canvas.bind("<Button-5>", self._on_mousewheel)
-        else:
-            self.canvas.bind("<MouseWheel>", self._on_mousewheel)
+
+        # --- Smart vertical mousewheel scrolling ---
+
+        def _bind_scroll(event):
+            if sys.platform.startswith("linux"):
+                self.bind_all("<Button-4>", _on_scroll_linux)
+                self.bind_all("<Button-5>", _on_scroll_linux)
+            else:
+                self.bind_all("<MouseWheel>", _on_scroll)
+
+        def _unbind_scroll(event):
+            if sys.platform.startswith("linux"):
+                self.unbind_all("<Button-4>")
+                self.unbind_all("<Button-5>")
+            else:
+                self.unbind_all("<MouseWheel>")
+
+        def _on_scroll(event):
+            if sys.platform.startswith("win"):
+                self.canvas.yview_scroll(-1 * int(event.delta / 120), "units")
+            elif sys.platform == "darwin":
+                self.canvas.yview_scroll(-1 * int(event.delta), "units")
+
+        def _on_scroll_linux(event):
+            if event.num == 4:
+                self.canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                self.canvas.yview_scroll(1, "units")
+
+        # --- Smart scroll binding ---
 
         self.thumb_frame = ttk.Frame(self.canvas)
         self.canvas.create_window((260, 0), window=self.thumb_frame, anchor="n")
 
+        # --- Smart vertical mousewheel scrolling ---
+
+        def _bind_scroll(event):
+            if sys.platform.startswith("linux"):
+                self.bind_all("<Button-4>", _on_scroll_linux)
+                self.bind_all("<Button-5>", _on_scroll_linux)
+            else:
+                self.bind_all("<MouseWheel>", _on_scroll)
+
+        def _unbind_scroll(event):
+            if sys.platform.startswith("linux"):
+                self.unbind_all("<Button-4>")
+                self.unbind_all("<Button-5>")
+            else:
+                self.unbind_all("<MouseWheel>")
+
+        def _on_scroll(event):
+            if sys.platform.startswith("win"):
+                self.canvas.yview_scroll(-1 * int(event.delta / 120), "units")
+            elif sys.platform == "darwin":
+                self.canvas.yview_scroll(-1 * int(event.delta), "units")
+
+        def _on_scroll_linux(event):
+            if event.num == 4:
+                self.canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                self.canvas.yview_scroll(1, "units")
+
+        self.canvas.bind("<Enter>", _bind_scroll)
+        self.canvas.bind("<Leave>", _unbind_scroll)
+        self.thumb_frame.bind("<Enter>", _bind_scroll)
+        self.thumb_frame.bind("<Leave>", _unbind_scroll)
         self.thumb_frame.bind(
             "<Configure>",
             lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
@@ -1513,6 +1721,17 @@ class App(tk.Tk):
 
         cfg = TEMPLATES[self.template_var.get()]
 
+        # ---- Template 9 UI toggle ----
+        is_template9 = cfg.get("mode") == "layered-dual-corner"
+
+        if is_template9 and not self.template9_visible:
+            self.template9_frame.pack(side="left", padx=10)
+            self.template9_visible = True
+
+        elif not is_template9 and self.template9_visible:
+            self.template9_frame.pack_forget()
+            self.template9_visible = False
+
         def crop(img, w, h):
             mode = self.crop_mode.get()
 
@@ -1533,25 +1752,123 @@ class App(tk.Tk):
                     return cover_image_manual(img, w, h, self.crop_offset.get())
                 return cover_image(img, w, h)
 
-        # Template 7 – Full poster + bottom logo panel
+        # ---------------- TEMPLATE 9 ----------------
+        if cfg.get("mode") == "layered-dual-corner":
+
+            template_img = Image.open(
+                resource_path(cfg["image_path"])
+            ).convert("RGBA")
+
+            card_w = template_img.width
+            card_h = template_img.height
+
+            base = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+
+            # ---- Poster (inset to prevent bleed) ----
+            if self.selected_poster_image:
+                bleed_padding = 3
+
+                inset_w = card_w - (bleed_padding * 2)
+                inset_h = card_h - (bleed_padding * 2)
+
+                poster = crop(self.selected_poster_image, inset_w, inset_h)
+
+                poster = apply_rounded_corners(
+                    poster,
+                    cfg.get("corner_radius", 22) - bleed_padding
+                )
+
+                base.paste(
+                    poster,
+                    (bleed_padding, bleed_padding),
+                    poster
+                )
+
+            # ---- Overlay template artwork ----
+            base.paste(template_img, (0, 0), template_img)
+
+            # ---- NFC Loading System Logo ----
+            nls_file = (
+                "templates/nls_white.png"
+                if self.nfc_logo_color.get() == "white"
+                else "templates/nls_black.png"
+            )
+
+            nls_logo = Image.open(
+                resource_path(nls_file)
+            ).convert("RGBA")
+
+            # Scale by BOTH width and height constraint
+            nls_cfg = cfg["nls"]
+
+            scale = min(
+                nls_cfg["max_width"] / nls_logo.width,
+                nls_cfg["max_height"] / nls_logo.height,
+                1
+            )
+
+            nls_logo = nls_logo.resize(
+                (
+                    int(nls_logo.width * scale),
+                    int(nls_logo.height * scale)
+                ),
+                Image.LANCZOS
+            )
+
+            self.paste_corner(
+                base,
+                nls_logo,
+                self.nfc_corner.get(),
+                nls_cfg["margin"]
+            )
+
+            # ---- System Logo ----
+            if self.logo_image:
+                sys_logo = self.logo_image.copy()
+                sys_cfg = cfg["system_logo"]
+
+                scale = min(
+                    sys_cfg["max_width"] / sys_logo.width,
+                    sys_cfg["max_height"] / sys_logo.height,
+                    1
+                )
+
+                sys_logo = sys_logo.resize(
+                    (
+                        int(sys_logo.width * scale),
+                        int(sys_logo.height * scale)
+                    ),
+                    Image.LANCZOS
+                )
+
+                self.paste_corner(
+                    base,
+                    sys_logo,
+                    self.system_corner.get(),
+                    sys_cfg["margin"]
+                )
+
+            # ---- FINALIZE ----
+            self.output_image = base
+            self.update_preview(base)
+            return
+
+        # ---------------- TEMPLATE 7 & 8 ----------------
         if cfg.get("mode") == "full-poster-bottom-panel":
 
             w = cfg["size"]["w"]
             h = cfg["size"]["h"]
 
-            # Create base poster
             if not self.selected_poster_image:
                 poster = Image.new("RGBA", (w, h), (0, 0, 0, 0))
             else:
                 poster = crop(self.selected_poster_image, w, h)
 
-            # First round
             poster = apply_rounded_corners(
                 poster,
                 cfg.get("corner_radius", 24)
             )
 
-            # Draw panel
             if self.logo_image or self.logo_path:
                 draw_bottom_logo_panel(
                     poster,
@@ -1568,8 +1885,9 @@ class App(tk.Tk):
             self.update_preview(poster)
             return
 
-        # Template 6 – full poster with rounded corners (no base template, no logo)
+        # ---------------- TEMPLATE 6 ----------------
         if cfg.get("mode") == "full-poster-rounded":
+
             if not self.selected_poster_image:
                 return
 
@@ -1585,6 +1903,7 @@ class App(tk.Tk):
             self.output_image = poster
             self.update_preview(poster)
             return
+
         template_img = Image.open(resource_path(cfg["image_path"])).convert("RGBA")
 
         # ---------------- TEMPLATE 3 ----------------
@@ -1661,6 +1980,7 @@ class App(tk.Tk):
 
         self.preview_image = ImageTk.PhotoImage(img)
         self.preview_label.configure(image=self.preview_image)
+
 
     # -------- SEARCH (SteamGridDB + TMDB) --------
 
@@ -1998,6 +2318,32 @@ class App(tk.Tk):
                 columnspan=THUMBS_PER_ROW,
                 pady=30
             )
+
+    # --------------------------------------------------
+    # Template 9 Helper – Corner Placement
+    # --------------------------------------------------
+    def paste_corner(self, base, logo, corner, margin):
+
+        card_w = base.width
+        card_h = base.height
+
+        if corner == "top-left":
+            x = margin
+            y = margin
+
+        elif corner == "top-right":
+            x = card_w - logo.width - margin
+            y = margin
+
+        elif corner == "bottom-left":
+            x = margin
+            y = card_h - logo.height - margin
+
+        else:  # bottom-right
+            x = card_w - logo.width - margin
+            y = card_h - logo.height - margin
+
+        base.paste(logo, (x, y), logo)
 
     # -------- OUTPUT --------
 
