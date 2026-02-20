@@ -91,7 +91,7 @@ Run on Linux:
 
 ```bash
 chmod +x NFC-Card-Generator
-./NFC-Card-Generator
+./nfc-card-generator
 ```
 
 ---
