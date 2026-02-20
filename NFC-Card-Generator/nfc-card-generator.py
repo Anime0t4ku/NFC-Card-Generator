@@ -13,17 +13,21 @@ import webbrowser
 import shutil
 from datetime import datetime
 
-def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except AttributeError:
-        base_path = os.path.abspath(".")
-
-    return os.path.join(base_path, relative_path)
-
 # ---------------- CONFIG ----------------
 
-CONFIG_FILE = "config.json"
+def get_base_dir():
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+BASE_DIR = get_base_dir()
+CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+
+
+def resource_path(relative_path):
+    if getattr(sys, "frozen", False):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(BASE_DIR, relative_path)
 
 CLEAR_W = 609
 CLEAR_H = 840
@@ -120,6 +124,7 @@ ICON_THUMB_SIZE = 160
 ICON_PADDING = 16
 THUMBS_PER_ROW = 3
 TEMPLATE_THUMB_W = 140
+TEMPLATE_THUMB_H = 200
 
 PREVIEW_MIN_W = 340
 PREVIEW_MIN_H = 520
@@ -127,11 +132,9 @@ PREVIEW_MIN_H = 520
 API_KEY = None        # SteamGridDB
 TMDB_API_KEY = None   # TMDB
 TMDB_IMG_BASE = "https://image.tmdb.org/t/p/original"
-WEB_IMAGE_DIR = "web-images"
+WEB_IMAGE_DIR = os.path.join(BASE_DIR, "web-images")
 WEB_POSTER_DIR = os.path.join(WEB_IMAGE_DIR, "posters")
 WEB_LOGO_DIR = os.path.join(WEB_IMAGE_DIR, "logos")
-
-
 
 # ---------------- CONFIG HELPERS ----------------
 
@@ -534,7 +537,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.1.8 by Anime0t4ku")
+        self.title("NFC Card Generator v2.1.9 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -835,20 +838,83 @@ class App(tk.Tk):
     # -------- UI BUILD --------
 
     def build_template_selector(self):
-        frame = ttk.LabelFrame(self, text="Select Template")
-        frame.pack(pady=10)
+        outer = ttk.LabelFrame(self, text="Select Template")
+        outer.pack(pady=10)
 
+        # Calculate visible width safely
+        visible_width = (TEMPLATE_THUMB_W + 20) * 6 + 120
+        visible_height = TEMPLATE_THUMB_H + 35
+
+        container = ttk.Frame(outer)
+        container.pack(anchor="center")
+
+        self.template_canvas = tk.Canvas(
+            container,
+            width=visible_width,
+            height=visible_height,
+            highlightthickness=0
+        )
+        self.template_canvas.pack()
+
+        scrollbar = ttk.Scrollbar(
+            outer,
+            orient="horizontal",
+            command=self.template_canvas.xview
+        )
+        self.template_canvas.configure(xscrollcommand=scrollbar.set)
+
+        self.template_frame = ttk.Frame(self.template_canvas)
+
+        self.template_canvas.create_window(
+            (0, 0),
+            window=self.template_frame,
+            anchor="nw"
+        )
+
+        def update_scrollregion(event=None):
+            self.template_canvas.configure(
+                scrollregion=self.template_canvas.bbox("all")
+            )
+
+            content_width = self.template_frame.winfo_reqwidth()
+            canvas_width = self.template_canvas.winfo_width()
+
+            if content_width > canvas_width:
+                scrollbar.pack(side="bottom", fill="x")
+            else:
+                scrollbar.pack_forget()
+
+        self.template_frame.bind("<Configure>", update_scrollregion)
+
+        # Horizontal mouse wheel
+        def on_mousewheel(event):
+            if sys.platform.startswith("win"):
+                self.template_canvas.xview_scroll(-1 * int(event.delta / 120), "units")
+            elif sys.platform == "darwin":
+                self.template_canvas.xview_scroll(-1 * int(event.delta / 2), "units")
+
+        def on_linux_scroll(event):
+            if event.num == 4:
+                self.template_canvas.xview_scroll(-1, "units")
+            elif event.num == 5:
+                self.template_canvas.xview_scroll(1, "units")
+
+        if sys.platform.startswith("linux"):
+            self.template_canvas.bind("<Button-4>", on_linux_scroll)
+            self.template_canvas.bind("<Button-5>", on_linux_scroll)
+        else:
+            self.template_canvas.bind("<MouseWheel>", on_mousewheel)
+
+        # Build buttons
         for name, cfg in TEMPLATES.items():
             img = Image.open(resource_path(cfg["image_path"]))
-            img = img.resize(
-                (TEMPLATE_THUMB_W, int(TEMPLATE_THUMB_W * img.height / img.width)),
-                Image.LANCZOS
-            )
+            img = fit_inside(img, TEMPLATE_THUMB_W, TEMPLATE_THUMB_H)
+
             tk_img = ImageTk.PhotoImage(img)
             self.template_imgs[name] = tk_img
 
             ttk.Radiobutton(
-                frame,
+                self.template_frame,
                 image=tk_img,
                 text=name,
                 compound="top",
@@ -979,12 +1045,12 @@ class App(tk.Tk):
         sb = ttk.Scrollbar(selector_container, orient="vertical", command=self.canvas.yview)
         sb.pack(side="left", fill="y")
         self.canvas.configure(yscrollcommand=sb.set)
-        # Global mouse wheel scrolling for thumbnail canvas
+        # Vertical scroll only when hovering thumbnail canvas
         if sys.platform.startswith("linux"):
-            self.bind_all("<Button-4>", self._on_mousewheel)
-            self.bind_all("<Button-5>", self._on_mousewheel)
+            self.canvas.bind("<Button-4>", self._on_mousewheel)
+            self.canvas.bind("<Button-5>", self._on_mousewheel)
         else:
-            self.bind_all("<MouseWheel>", self._on_mousewheel)
+            self.canvas.bind("<MouseWheel>", self._on_mousewheel)
 
         self.thumb_frame = ttk.Frame(self.canvas)
         self.canvas.create_window((260, 0), window=self.thumb_frame, anchor="n")
@@ -1019,9 +1085,8 @@ class App(tk.Tk):
 
         ttk.Label(preview, text="Preview").pack(anchor="n")
 
-        preview_frame = ttk.Frame(preview, width=PREVIEW_MIN_W, height=PREVIEW_MIN_H)
-        preview_frame.pack(expand=True)
-        preview_frame.pack_propagate(False)
+        preview_frame = ttk.Frame(preview)
+        preview_frame.pack(expand=True, fill="both")
 
         self.preview_label = ttk.Label(preview_frame)
         self.preview_label.pack(expand=True, fill="both")
@@ -1414,16 +1479,24 @@ class App(tk.Tk):
         self.update_preview(base)
 
     def update_preview(self, base):
+        # Force geometry calculation
+        self.update_idletasks()
+
         w = self.preview_label.winfo_width()
         h = self.preview_label.winfo_height()
+
+        # Fallback if layout not ready yet
         if w <= 1 or h <= 1:
-            return
+            w = PREVIEW_MIN_W
+            h = PREVIEW_MIN_H
 
         scale = min(w / base.width, h / base.height)
+
         img = base.resize(
             (int(base.width * scale), int(base.height * scale)),
             Image.LANCZOS
         )
+
         self.preview_image = ImageTk.PhotoImage(img)
         self.preview_label.configure(image=self.preview_image)
 
