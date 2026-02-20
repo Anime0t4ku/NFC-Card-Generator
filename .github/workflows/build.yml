@@ -16,12 +16,12 @@ jobs:
 
     steps:
       - name: Checkout branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install dependencies
         run: |
@@ -35,7 +35,7 @@ jobs:
         run: pyinstaller --clean nfc-card-generator.py --onefile --noconsole --add-data "icon.png;." --add-data "templates;templates" --hidden-import=PIL._tkinter_finder --hidden-import=PIL.ImageTk --collect-submodules=PIL --icon app.ico
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: NFC-Card-Generator-Windows-x86_64
           path: NFC-Card-Generator/dist/
@@ -49,7 +49,7 @@ jobs:
 
     steps:
       - name: Checkout branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install system dependencies
         run: |
@@ -57,9 +57,9 @@ jobs:
           sudo apt-get install -y python3-tk
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install Python dependencies
         run: |
@@ -75,7 +75,7 @@ jobs:
         run: chmod +x NFC-Card-Generator/dist/nfc-card-generator
 
       - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: NFC-Card-Generator-Linux-x86_64
           path: NFC-Card-Generator/dist/
@@ -91,12 +91,12 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: dist
 
