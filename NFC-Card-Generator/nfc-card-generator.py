@@ -679,7 +679,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.3.0 by Anime0t4ku")
+        self.title("NFC Card Generator v2.4.0 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -1444,6 +1444,12 @@ class App(tk.Tk):
             bottom,
             text="Save As…",
             command=self.save_as
+        ).pack(side="left", padx=(0, 10))
+
+        ttk.Button(
+            bottom,
+            text="Create Print PDF",
+            command=self.open_print_pdf_window
         ).pack(side="left", padx=(0, 10))
 
         self.open_folder_btn = ttk.Button(
@@ -2345,6 +2351,297 @@ class App(tk.Tk):
         base.paste(logo, (x, y), logo)
 
     # -------- OUTPUT --------
+
+    def render_nfc_print_sheet(self, slots):
+        # A4 portrait at 300 DPI
+        page_w = 2480
+        page_h = 3508
+        page = Image.new("RGB", (page_w, page_h), "white")
+
+        # Real card size in mm
+        card_w_mm = 52.41
+        card_h_mm = 84.16
+
+        def mm_to_px(mm):
+            return round((mm / 25.4) * 300)
+
+        # Original upright print size
+        card_w = mm_to_px(card_w_mm)
+        card_h = mm_to_px(card_h_mm)
+
+        # Rotated 90° clockwise for sheet placement
+        placed_w = card_h
+        placed_h = card_w
+
+        cols = 2
+        rows = 4
+
+        # Equal spacing between cards
+        gap_x = 80
+        gap_y = 80
+
+        grid_w = (cols * placed_w) + ((cols - 1) * gap_x)
+        grid_h = (rows * placed_h) + ((rows - 1) * gap_y)
+
+        # Center the whole grid block on the page
+        start_x = (page_w - grid_w) // 2
+        start_y = (page_h - grid_h) // 2
+
+        for i in range(8):
+            img = slots[i]
+            if img is None:
+                continue
+
+            row = i // cols
+            col = i % cols
+
+            x = start_x + col * (placed_w + gap_x)
+            y = start_y + row * (placed_h + gap_y)
+
+            card = img.convert("RGBA").resize((card_w, card_h), Image.LANCZOS)
+            card = card.rotate(-90, expand=True)  # 90° clockwise
+
+            page.paste(card, (x, y), card)
+
+        return page
+
+    def open_print_pdf_window(self):
+        win = tk.Toplevel(self)
+        win.title("Print PDF Template")
+        win.geometry("980x940")
+        win.minsize(900, 860)
+        win.transient(self)
+        win.grab_set()
+
+        slots = [None] * 8
+
+        preview_label = ttk.Label(win)
+        preview_label.pack(pady=(12, 8), expand=True)
+
+        status_var = tk.StringVar()
+
+        ttk.Label(
+            win,
+            textvariable=status_var,
+            justify="center"
+        ).pack(pady=(0, 8))
+
+        def update_status():
+            lines = []
+            for row in range(4):
+                left = row * 2
+                right = left + 1
+
+                s1 = "Loaded" if slots[left] is not None else "Empty"
+                s2 = "Loaded" if slots[right] is not None else "Empty"
+
+                lines.append(
+                    f"Card {left + 1}: {s1}    Card {right + 1}: {s2}"
+                )
+
+            status_var.set("\n".join(lines))
+
+        def update_preview():
+            update_status()
+
+            page = self.render_nfc_print_sheet(slots)
+
+            preview_w = 420
+            preview_h = int(page.height * (preview_w / page.width))
+            preview = page.resize((preview_w, preview_h), Image.LANCZOS)
+
+            tk_img = ImageTk.PhotoImage(preview)
+            preview_label.configure(image=tk_img)
+            preview_label.image = tk_img
+
+        def load_into_slot(index):
+            path = filedialog.askopenfilename(
+                title=f"Select Card {index + 1}",
+                filetypes=[("Images", "*.png *.jpg *.jpeg *.webp")]
+            )
+            if not path:
+                return
+
+            try:
+                slots[index] = Image.open(path).convert("RGBA")
+                update_preview()
+            except Exception as e:
+                messagebox.showerror(
+                    "Error",
+                    f"Failed to load image:\n{e}",
+                    parent=win
+                )
+
+        def load_multiple():
+            paths = filedialog.askopenfilenames(
+                title="Select Card Images",
+                filetypes=[("Images", "*.png *.jpg *.jpeg *.webp")]
+            )
+
+            if not paths:
+                return
+
+            selected = list(paths)
+
+            if len(selected) > 8:
+                messagebox.showinfo(
+                    "Notice",
+                    "Only the first 8 images will be loaded.",
+                    parent=win
+                )
+                selected = selected[:8]
+
+            try:
+                for i in range(8):
+                    slots[i] = None
+
+                for i, path in enumerate(selected):
+                    slots[i] = Image.open(path).convert("RGBA")
+
+                update_preview()
+
+            except Exception as e:
+                messagebox.showerror(
+                    "Error",
+                    f"Failed to load images:\n{e}",
+                    parent=win
+                )
+
+        def clear_slot(index):
+            slots[index] = None
+            update_preview()
+
+        def clear_all():
+            for i in range(8):
+                slots[i] = None
+            update_preview()
+
+        def export_pdf():
+            if all(s is None for s in slots):
+                messagebox.showerror(
+                    "Error",
+                    "Load at least one card first.",
+                    parent=win
+                )
+                return
+
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            default_name = sanitize_filename(self.current_game_title or "nfc_cards")
+
+            file_path = filedialog.asksaveasfilename(
+                title="Save Print PDF",
+                defaultextension=".pdf",
+                filetypes=[("PDF File", "*.pdf")],
+                initialfile=f"{default_name}_print_sheet_{timestamp}.pdf",
+                parent=win
+            )
+
+            if not file_path:
+                return
+
+            try:
+                page = self.render_nfc_print_sheet(slots)
+                page.save(file_path, "PDF", resolution=300.0)
+
+                messagebox.showinfo(
+                    "Export Complete",
+                    f"Print PDF saved to:\n{file_path}",
+                    parent=win
+                )
+
+            except Exception as e:
+                messagebox.showerror(
+                    "Error",
+                    f"Failed to create print PDF:\n{e}",
+                    parent=win
+                )
+
+        controls = ttk.Frame(win)
+        controls.pack(pady=(0, 12))
+
+        # Load buttons
+        row1 = ttk.Frame(controls)
+        row1.pack(pady=4)
+
+        for i in range(4):
+            ttk.Button(
+                row1,
+                text=f"Load Card {i + 1}",
+                width=16,
+                command=lambda idx=i: load_into_slot(idx)
+            ).pack(side="left", padx=4)
+
+        row2 = ttk.Frame(controls)
+        row2.pack(pady=4)
+
+        for i in range(4, 8):
+            ttk.Button(
+                row2,
+                text=f"Load Card {i + 1}",
+                width=16,
+                command=lambda idx=i: load_into_slot(idx)
+            ).pack(side="left", padx=4)
+
+        # Clear buttons
+        row3 = ttk.Frame(controls)
+        row3.pack(pady=6)
+
+        for i in range(4):
+            ttk.Button(
+                row3,
+                text=f"Clear {i + 1}",
+                width=16,
+                command=lambda idx=i: clear_slot(idx)
+            ).pack(side="left", padx=4)
+
+        row4 = ttk.Frame(controls)
+        row4.pack(pady=4)
+
+        for i in range(4, 8):
+            ttk.Button(
+                row4,
+                text=f"Clear {i + 1}",
+                width=16,
+                command=lambda idx=i: clear_slot(idx)
+            ).pack(side="left", padx=4)
+
+        # Global actions
+        row5 = ttk.Frame(controls)
+        row5.pack(pady=(10, 0))
+
+        ttk.Button(
+            row5,
+            text="Load Cards",
+            width=16,
+            command=load_multiple
+        ).pack(side="left", padx=6)
+
+        ttk.Button(
+            row5,
+            text="Clear All",
+            width=16,
+            command=clear_all
+        ).pack(side="left", padx=6)
+
+        # Export row
+        row6 = ttk.Frame(controls)
+        row6.pack(pady=(10, 0))
+
+        ttk.Button(
+            row6,
+            text="Export PDF",
+            width=18,
+            command=export_pdf
+        ).pack(side="left", padx=6)
+
+        ttk.Button(
+            row6,
+            text="Close",
+            width=18,
+            command=win.destroy
+        ).pack(side="left", padx=6)
+
+        update_preview()
 
     def choose_output_dir(self):
         path = filedialog.askdirectory()
