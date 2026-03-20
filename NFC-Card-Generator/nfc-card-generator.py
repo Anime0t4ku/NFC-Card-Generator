@@ -23,7 +23,6 @@ def get_base_dir():
 BASE_DIR = get_base_dir()
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 
-
 def resource_path(relative_path):
     if getattr(sys, "frozen", False):
         return os.path.join(sys._MEIPASS, relative_path)
