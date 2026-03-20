@@ -13,7 +13,7 @@ import webbrowser
 import shutil
 from datetime import datetime
 
-# ---------------- CONFIG ----------------
+# ---------------- CONFIG ---------------
 
 def get_base_dir():
     if getattr(sys, "frozen", False):
