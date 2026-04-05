@@ -61,8 +61,8 @@ TEMPLATES = {
         "center": {
             "x": 14,
             "y": 63,
-            "w": 591,
-            "h": 849
+            "w": 588,
+            "h": 846
         },
         "footer": {
             "height": 90,
@@ -679,7 +679,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.4.0 by Anime0t4ku")
+        self.title("NFC Card Generator v2.4.1 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
