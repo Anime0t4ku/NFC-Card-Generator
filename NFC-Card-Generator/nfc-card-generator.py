@@ -61,8 +61,8 @@ TEMPLATES = {
         "center": {
             "x": 14,
             "y": 63,
-            "w": 588,
-            "h": 846
+            "w": 589,
+            "h": 847
         },
         "footer": {
             "height": 90,
@@ -177,6 +177,8 @@ THUMBS_PER_ROW = 3
 TEMPLATE_THUMB_W = 140
 TEMPLATE_THUMB_H = 200
 
+SYSTEM_ICON_RESULT_LIMIT = 200
+
 PREVIEW_MIN_W = 340
 PREVIEW_MIN_H = 520
 
@@ -247,6 +249,24 @@ def save_icon_pack_dir(path):
     cfg = load_config()
     cfg["icon_pack_directory"] = path
     save_config(cfg)
+
+def load_favourite_logos():
+    return load_config().get("favourite_logos", [])
+
+def save_favourite_logos(paths):
+    cfg = load_config()
+    cfg["favourite_logos"] = sorted(paths)
+    save_config(cfg)
+
+def add_favourite_logo(path):
+    favs = set(load_favourite_logos())
+    favs.add(path)
+    save_favourite_logos(list(favs))
+
+def remove_favourite_logo(path):
+    favs = set(load_favourite_logos())
+    favs.discard(path)
+    save_favourite_logos(list(favs))
 
 def headers():
     return {"Authorization": f"Bearer {API_KEY}"}
@@ -327,18 +347,22 @@ def tmdb_get_posters(item):
 
     return r.json().get("posters", [])
 
-def search_system_icons(query, root):
-    results = []
-    q = query.lower()
+ICON_EXTS = (".png", ".jpg", ".jpeg", ".webp")
 
+def build_system_icon_index(root):
+    index = []
     for base, _, files in os.walk(root):
         for f in files:
-            if not f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+            if not f.lower().endswith(ICON_EXTS):
                 continue
-            if q in f.lower():
-                results.append(os.path.join(base, f))
+            abs_path = os.path.join(base, f)
+            rel_path = os.path.relpath(abs_path, root).lower()
+            index.append((abs_path, rel_path))
+    return index
 
-    return results
+def filter_system_icons(index, query):
+    q = query.lower()
+    return [abs_path for abs_path, rel_lower in index if q in rel_lower]
 
 
 # ---------------- IMAGE HELPERS ----------------
@@ -679,7 +703,7 @@ class App(tk.Tk):
             self._window_icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, self._window_icon)
 
-        self.title("NFC Card Generator v2.4.1 by Anime0t4ku")
+        self.title("NFC Card Generator v2.5.0 by Anime0t4ku")
         self.geometry("1200x900")
         self.minsize(1000, 700)
 
@@ -724,10 +748,18 @@ class App(tk.Tk):
         self.search_id = 0
 
         self.source_state = {
-            "steam": {"query": "", "thumbs": [], "scroll": 0.0},
-            "tmdb": {"query": "", "thumbs": [], "scroll": 0.0},
+            "steam":  {"query": "", "thumbs": [], "scroll": 0.0},
+            "tmdb":   {"query": "", "thumbs": [], "scroll": 0.0},
             "system": {"query": "", "thumbs": [], "scroll": 0.0},
+            "favs":   {"query": "", "thumbs": [], "scroll": 0.0},
         }
+
+        # Lazily-built {root_path: [(abs_path, rel_path_lower), ...]}
+        # so System Logos search doesn't re-walk the filesystem on every query.
+        self.system_icon_indices = {}
+
+        # Persisted set of absolute paths the user has starred.
+        self.favourite_logos = set(load_favourite_logos())
 
         self.build_ui()
         self.update_output_folder_button()
@@ -756,21 +788,159 @@ class App(tk.Tk):
         if state["query"]:
             self.game_entry.insert(0, state["query"])
 
-        # Clear thumbnails
+        # Clear thumbnails — but preserve the persistent labels, which live
+        # under thumb_frame too and must survive source switches.
         for w in self.thumb_frame.winfo_children():
+            if w in (self.loading_label, self.placeholder_label):
+                continue
             w.destroy()
 
         self.thumb_imgs.clear()
 
-        # Restore thumbnails
-        for item in state["thumbs"]:
-            self._restore_thumb(src, item)
+        if src == "favs":
+            # Favourites are always loaded fresh from config — never from state.
+            self.show_favourite_logos()
+        elif state["thumbs"]:
+            # Restore previous search results for this source.
+            self.refresh_placeholder_text()
+            if self.placeholder_label.winfo_exists():
+                self.placeholder_label.grid_forget()
+            for item in state["thumbs"]:
+                self._restore_thumb(src, item)
+        else:
+            # No results in state: show the source-specific search prompt.
+            self.refresh_placeholder_text()
+            if self.placeholder_label.winfo_exists():
+                self.placeholder_label.grid(
+                    row=0,
+                    column=0,
+                    columnspan=THUMBS_PER_ROW,
+                    pady=30
+                )
 
         self.after(50, lambda: self.canvas.yview_moveto(state["scroll"]))
 
     def on_source_change(self):
         self.save_current_source_state()
         self.restore_source_state()
+
+    def _update_clear_btn(self):
+        if hasattr(self, "clear_search_btn"):
+            state = "normal" if self.search_var.get() else "disabled"
+            self.clear_search_btn.configure(state=state)
+
+    def clear_search(self):
+        src = self.source_var.get()
+        self.game_entry.delete(0, tk.END)
+        self.source_state[src]["thumbs"].clear()
+        self.source_state[src]["query"] = ""
+        self.restore_source_state()
+
+    def refresh_placeholder_text(self):
+        if not hasattr(self, "placeholder_label"):
+            return
+        if not self.placeholder_label.winfo_exists():
+            return
+
+        src = self.source_var.get()
+        if src == "steam":
+            text = (
+                "Search for a game to load posters\n"
+                "or use \"Poster ▼\" to add your own image"
+            )
+        elif src == "tmdb":
+            text = (
+                "Search for a movie or TV show to load posters\n"
+                "or use \"Poster ▼\" to add your own image"
+            )
+        elif src == "system":
+            text = (
+                "Search by platform or logo name\n"
+                "(e.g. \"arcade\", \"capcom\", \"nintendo\")"
+            )
+        else:
+            text = ""  # favs — show_favourite_logos sets its own placeholder
+
+        self.placeholder_label.configure(text=text)
+
+    def get_system_icon_index(self, root):
+        if root not in self.system_icon_indices:
+            self.system_icon_indices[root] = build_system_icon_index(root)
+        return self.system_icon_indices[root]
+
+    def invalidate_system_icon_index(self, root=None):
+        if root is None:
+            self.system_icon_indices.clear()
+        else:
+            self.system_icon_indices.pop(root, None)
+
+    # -------- SYSTEM LOGO FAVOURITES --------
+
+    def show_favourite_logos(self):
+        """Populate the thumb grid with the user's starred logos.
+        Called whenever the Favourites source is active.
+        Runs on the main thread — favourite sets are small (<50 items typically)."""
+        for w in self.thumb_frame.winfo_children():
+            if w in (self.loading_label, self.placeholder_label):
+                continue
+            w.destroy()
+        self.thumb_imgs.clear()
+
+        valid_paths = sorted(
+            [p for p in self.favourite_logos if os.path.isfile(p)],
+            key=lambda p: os.path.basename(p).lower()
+        )
+
+        if not valid_paths:
+            if self.placeholder_label.winfo_exists():
+                self.placeholder_label.configure(
+                    text="No favourites yet\n"
+                         "Right-click any logo in search results to add one"
+                )
+                self.placeholder_label.grid(
+                    row=0, column=0, columnspan=THUMBS_PER_ROW, pady=30
+                )
+            return
+
+        if self.placeholder_label.winfo_exists():
+            self.placeholder_label.grid_forget()
+
+        for path in valid_paths:
+            try:
+                with open(path, "rb") as f:
+                    data = f.read()
+                self._create_system_thumb_button(data, path)
+            except Exception:
+                pass
+
+    def on_system_icon_right_click(self, path, event):
+        menu = tk.Menu(self, tearoff=0)
+        if path in self.favourite_logos:
+            menu.add_command(
+                label="★  Remove from Favourites",
+                command=lambda: self.toggle_favourite_logo(path, add=False)
+            )
+        else:
+            menu.add_command(
+                label="☆  Add to Favourites",
+                command=lambda: self.toggle_favourite_logo(path, add=True)
+            )
+        menu.tk_popup(event.x_root, event.y_root)
+
+    def toggle_favourite_logo(self, path, add):
+        if add:
+            self.favourite_logos.add(path)
+            add_favourite_logo(path)
+            self.show_status(f"★  Added: {os.path.basename(path)}")
+        else:
+            self.favourite_logos.discard(path)
+            remove_favourite_logo(path)
+            self.show_status(f"Removed: {os.path.basename(path)}")
+
+        # If the user is on the Favourites tab, refresh the grid immediately
+        # so a removal disappears and an addition appears at once.
+        if self.source_var.get() == "favs":
+            self.show_favourite_logos()
 
     def _restore_thumb(self, src, item):
         if src == "steam":
@@ -822,7 +992,9 @@ class App(tk.Tk):
             pady=5
         )
 
-    def _add_system_icon_thumb_no_cache(self, data, path):
+    def _create_system_thumb_button(self, data, path):
+        """Render one system-icon thumbnail button with right-click support.
+        Does NOT touch source_state — callers decide whether to persist."""
         i = len(self.thumb_imgs)
 
         img = Image.open(BytesIO(data)).convert("RGBA")
@@ -831,16 +1003,21 @@ class App(tk.Tk):
         tk_img = ImageTk.PhotoImage(img)
         self.thumb_imgs.append(tk_img)
 
-        ttk.Button(
+        btn = ttk.Button(
             self.thumb_frame,
             image=tk_img,
             command=lambda p=path: self.apply_system_icon(p)
-        ).grid(
+        )
+        btn.grid(
             row=(i // THUMBS_PER_ROW) + 1,
             column=i % THUMBS_PER_ROW,
             padx=5,
             pady=5
         )
+        btn.bind("<Button-3>", lambda e, p=path: self.on_system_icon_right_click(p, e))
+
+    def _add_system_icon_thumb_no_cache(self, data, path):
+        self._create_system_thumb_button(data, path)
 
     def ensure_api_key(self, service="steamgriddb"):
         global API_KEY, TMDB_API_KEY
@@ -965,6 +1142,14 @@ class App(tk.Tk):
                 command=self.on_source_change
             ).pack(side="left")
 
+            ttk.Radiobutton(
+                self.source_frame,
+                text="⭐ Favourites",
+                variable=self.source_var,
+                value="favs",
+                command=self.on_source_change
+            ).pack(side="left")
+
     def choose_icon_pack_dir(self):
         path = filedialog.askdirectory()
         if not path:
@@ -972,6 +1157,7 @@ class App(tk.Tk):
 
         self.icon_pack_dir = path
         save_icon_pack_dir(path)
+        self.invalidate_system_icon_index()
 
         self.icon_pack_btn.config(text="Change System Icon Pack Folder")
 
@@ -1285,11 +1471,27 @@ class App(tk.Tk):
 
         ttk.Label(self.search_container, text="Search:").pack(side="left")
 
-        self.game_entry = ttk.Entry(self.search_container, width=30)
-        self.game_entry.pack(side="left", padx=5)
+        self.search_var = tk.StringVar()
+        self.search_var.trace_add("write", lambda *_: self._update_clear_btn())
+
+        self.game_entry = ttk.Entry(
+            self.search_container,
+            textvariable=self.search_var,
+            width=30
+        )
+        self.game_entry.pack(side="left", padx=(5, 0))
 
         # Press Enter to search
         self.game_entry.bind("<Return>", lambda e: self.search())
+
+        self.clear_search_btn = ttk.Button(
+            self.search_container,
+            text="✕",
+            width=2,
+            command=self.clear_search,
+            state="disabled"
+        )
+        self.clear_search_btn.pack(side="left", padx=(2, 6))
 
         ttk.Button(
             self.search_container,
@@ -1402,7 +1604,7 @@ class App(tk.Tk):
 
         self.placeholder_label = ttk.Label(
             self.thumb_frame,
-            text="Search for a game, movie or TV show to load posters\nor use “Poster ▼” to add your own image",
+            text="",
             foreground="gray",
             justify="center"
         )
@@ -1413,6 +1615,8 @@ class App(tk.Tk):
             columnspan=THUMBS_PER_ROW,
             pady=30
         )
+
+        self.refresh_placeholder_text()
 
         preview = ttk.Frame(main)
         preview.grid(row=0, column=2, padx=40, sticky="nsew")
@@ -1543,6 +1747,7 @@ class App(tk.Tk):
 
             self.icon_pack_dir = path
             save_icon_pack_dir(path)
+            self.invalidate_system_icon_index()
             icon_pack_var.set(path)
             self.build_source_controls(refresh=True)
             self.show_status("System logo pack folder set")
@@ -2006,6 +2211,7 @@ class App(tk.Tk):
             ):
                 return
 
+            self.system_favourites_view = False
             self.show_loading()
 
             threading.Thread(
@@ -2249,17 +2455,27 @@ class App(tk.Tk):
     def fetch_system_icons_thread(self, query, search_id):
         results = []
 
-        # Search system logo pack
+        # Search system logo pack (uses lazy in-memory index to avoid
+        # re-walking the filesystem on every query).
         if self.icon_pack_dir and os.path.isdir(self.icon_pack_dir):
-            results.extend(
-                search_system_icons(query, self.icon_pack_dir)
-            )
+            try:
+                pack_index = self.get_system_icon_index(self.icon_pack_dir)
+                results.extend(filter_system_icons(pack_index, query))
+            except Exception as e:
+                print("System icon pack index failed:", e)
 
         # Search cached web logos
         if self.search_cached_logos.get() and os.path.isdir(WEB_LOGO_DIR):
-            results.extend(
-                search_system_icons(query, WEB_LOGO_DIR)
-            )
+            try:
+                cache_index = self.get_system_icon_index(WEB_LOGO_DIR)
+                results.extend(filter_system_icons(cache_index, query))
+            except Exception as e:
+                print("Cached web logos index failed:", e)
+
+        total_matches = len(results)
+        truncated = total_matches > SYSTEM_ICON_RESULT_LIMIT
+        if truncated:
+            results = results[:SYSTEM_ICON_RESULT_LIMIT]
 
         for icon_path in results:
             if search_id != self.search_id:
@@ -2276,35 +2492,26 @@ class App(tk.Tk):
             except Exception:
                 pass
 
-        self.after(150, self.finish_thumb_load)
+        def done():
+            self.finish_thumb_load()
+            if truncated:
+                self.show_status(
+                    f"Showing first {SYSTEM_ICON_RESULT_LIMIT} of "
+                    f"{total_matches} matches — refine your search"
+                )
+            elif total_matches == 0:
+                self.show_status("No system logos matched")
+
+        self.after(150, done)
 
     def add_system_icon_thumb(self, data, path):
         if self.placeholder_label.winfo_exists():
             self.placeholder_label.grid_forget()
 
-        # store for source persistence
+        # store for source persistence (search results only)
         self.source_state["system"]["thumbs"].append((data, path))
 
-        i = len(self.thumb_imgs)
-
-        img = Image.open(BytesIO(data)).convert("RGBA")
-
-        # Square system icon thumbnails
-        img = fit_inside(img, ICON_THUMB_SIZE, ICON_THUMB_SIZE)
-
-        tk_img = ImageTk.PhotoImage(img)
-        self.thumb_imgs.append(tk_img)
-
-        ttk.Button(
-            self.thumb_frame,
-            image=tk_img,
-            command=lambda p=path: self.apply_system_icon(p)
-        ).grid(
-            row=(i // THUMBS_PER_ROW) + 1,
-            column=i % THUMBS_PER_ROW,
-            padx=5,
-            pady=5
-        )
+        self._create_system_thumb_button(data, path)
 
     def apply_system_icon(self, path):
         self.logo_image = Image.open(path).convert("RGBA")
