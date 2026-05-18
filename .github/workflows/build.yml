@@ -24,6 +24,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
+        working-directory: NFC-Card-Generator
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -32,7 +33,7 @@ jobs:
       - name: Build Windows executable
         shell: cmd
         working-directory: NFC-Card-Generator
-        run: pyinstaller --clean nfc-card-generator.py --onefile --noconsole --add-data "icon.png;." --add-data "templates;templates" --hidden-import=PIL._tkinter_finder --hidden-import=PIL.ImageTk --collect-submodules=PIL --icon app.ico
+        run: pyinstaller --clean --onefile --windowed --name NFC-Card-Generator --icon app.ico --add-data "Icon.png;." --add-data "templates;templates" --collect-submodules PIL --collect-submodules PyQt6 main.py
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v6
@@ -41,7 +42,7 @@ jobs:
           path: NFC-Card-Generator/dist/
 
   # =====================================================
-  # Linux Build (Tkinter + Pillow fixed)
+  # Linux Build
   # =====================================================
   build-linux:
     name: Build Linux
@@ -51,17 +52,13 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v6
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-tk
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: Install Python dependencies
+        working-directory: NFC-Card-Generator
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -69,10 +66,10 @@ jobs:
 
       - name: Build Linux executable
         working-directory: NFC-Card-Generator
-        run: pyinstaller --clean nfc-card-generator.py --onefile --noconsole --add-data "icon.png:." --add-data "templates:templates" --hidden-import=PIL._tkinter_finder --hidden-import=PIL.ImageTk --collect-submodules=PIL
+        run: pyinstaller --clean --onefile --windowed --name NFC-Card-Generator --add-data "Icon.png:." --add-data "templates:templates" --collect-submodules PIL --collect-submodules PyQt6 main.py
 
       - name: Make binary executable
-        run: chmod +x NFC-Card-Generator/dist/nfc-card-generator
+        run: chmod +x NFC-Card-Generator/dist/NFC-Card-Generator
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v6
