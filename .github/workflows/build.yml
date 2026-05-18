@@ -33,7 +33,7 @@ jobs:
       - name: Build Windows executable
         shell: cmd
         working-directory: NFC-Card-Generator
-        run: pyinstaller --clean --onefile --windowed --name NFC-Card-Generator --icon app.ico --add-data "Icon.png;." --add-data "templates;templates" --collect-submodules PIL --collect-submodules PyQt6 main.py
+        run: pyinstaller --clean --onefile --windowed --name NFC-Card-Generator --icon app.ico --add-data "icon.png;." --add-data "templates;templates" --collect-submodules PIL --collect-submodules PyQt6 main.py
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v6
@@ -66,7 +66,7 @@ jobs:
 
       - name: Build Linux executable
         working-directory: NFC-Card-Generator
-        run: pyinstaller --clean --onefile --windowed --name NFC-Card-Generator --add-data "Icon.png:." --add-data "templates:templates" --collect-submodules PIL --collect-submodules PyQt6 main.py
+        run: pyinstaller --clean --onefile --windowed --name NFC-Card-Generator --add-data "icon.png:." --add-data "templates:templates" --collect-submodules PIL --collect-submodules PyQt6 main.py
 
       - name: Make binary executable
         run: chmod +x NFC-Card-Generator/dist/NFC-Card-Generator
