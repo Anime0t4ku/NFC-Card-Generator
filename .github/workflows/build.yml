@@ -28,7 +28,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller pillow
+
+      - name: Convert PNG icon to ICO
+        shell: pwsh
+        working-directory: NFC-Card-Generator
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          img = Image.open("icon.png").convert("RGBA")
+          img.save("app.ico", sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])
+          PY
 
       - name: Build Windows executable
         shell: cmd
@@ -62,7 +72,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller pillow
 
       - name: Build Linux executable
         working-directory: NFC-Card-Generator
@@ -78,12 +88,68 @@ jobs:
           path: NFC-Card-Generator/dist/
 
   # =====================================================
+  # macOS Apple Silicon Build
+  # =====================================================
+  build-macos-apple-silicon:
+    name: Build macOS Apple Silicon
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        working-directory: NFC-Card-Generator
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller pillow
+
+      - name: Convert PNG icon to ICNS
+        working-directory: NFC-Card-Generator
+        run: |
+          mkdir -p app.iconset
+          sips -z 16 16 icon.png --out app.iconset/icon_16x16.png
+          sips -z 32 32 icon.png --out app.iconset/icon_16x16@2x.png
+          sips -z 32 32 icon.png --out app.iconset/icon_32x32.png
+          sips -z 64 64 icon.png --out app.iconset/icon_32x32@2x.png
+          sips -z 128 128 icon.png --out app.iconset/icon_128x128.png
+          sips -z 256 256 icon.png --out app.iconset/icon_128x128@2x.png
+          sips -z 256 256 icon.png --out app.iconset/icon_256x256.png
+          sips -z 512 512 icon.png --out app.iconset/icon_256x256@2x.png
+          sips -z 512 512 icon.png --out app.iconset/icon_512x512.png
+          cp icon.png app.iconset/icon_512x512@2x.png
+          iconutil -c icns app.iconset -o app.icns
+
+      - name: Build macOS app
+        working-directory: NFC-Card-Generator
+        run: pyinstaller --clean --windowed --name NFC-Card-Generator --icon app.icns --add-data "icon.png:." --add-data "templates:templates" --collect-submodules PIL --collect-submodules PyQt6 main.py
+
+      - name: Create DMG
+        working-directory: NFC-Card-Generator
+        run: |
+          mkdir -p dmg
+          cp -R dist/NFC-Card-Generator.app dmg/
+          hdiutil create -volname "NFC Card Generator" -srcfolder dmg -ov -format UDZO dist/NFC-Card-Generator-macOS-Apple-Silicon.dmg
+
+      - name: Upload macOS Apple Silicon artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: NFC-Card-Generator-macOS-Apple-Silicon
+          path: NFC-Card-Generator/dist/NFC-Card-Generator-macOS-Apple-Silicon.dmg
+
+  # =====================================================
   # Release
   # =====================================================
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-linux, build-macos-apple-silicon]
     if: github.ref == 'refs/heads/main'
 
     steps:
@@ -107,6 +173,10 @@ jobs:
           cd dist/NFC-Card-Generator-Linux-x86_64
           tar -czvf ../../NFC-Card-Generator-Linux-x86_64.tar.gz .
 
+      - name: Copy macOS Apple Silicon DMG
+        run: |
+          cp dist/NFC-Card-Generator-macOS-Apple-Silicon/NFC-Card-Generator-macOS-Apple-Silicon.dmg ./NFC-Card-Generator-macOS-Apple-Silicon.dmg
+
       - name: Update Git Tag
         run: |
           git tag -f Pre-release
@@ -122,3 +192,4 @@ jobs:
           artifacts: |
             NFC-Card-Generator-Windows-x86_64.zip
             NFC-Card-Generator-Linux-x86_64.tar.gz
+            NFC-Card-Generator-macOS-Apple-Silicon.dmg

@@ -3,9 +3,14 @@ from io import BytesIO
 import os
 
 import requests
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFile, ImageOps
 
 from app.config import resource_path, sanitize_filename, WEB_POSTER_DIR, WEB_LOGO_DIR, load_cache_posters, load_cache_logos
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+Image.MAX_IMAGE_PIXELS = 60000000
+MAX_LOADED_IMAGE_PIXELS = 36000000
+MAX_LOADED_IMAGE_SIDE = 6000
 
 CLEAR_W = 609
 T4_POSTER_W = 619
@@ -34,6 +39,28 @@ TEMPLATES = {
 }
 
 
+def normalize_image(img):
+    img.load()
+    img = ImageOps.exif_transpose(img)
+    if img.width <= 0 or img.height <= 0:
+        raise ValueError('Image has an invalid size')
+    if img.width * img.height > MAX_LOADED_IMAGE_PIXELS or img.width > MAX_LOADED_IMAGE_SIDE or img.height > MAX_LOADED_IMAGE_SIDE:
+        img.thumbnail((MAX_LOADED_IMAGE_SIDE, MAX_LOADED_IMAGE_SIDE), Image.LANCZOS)
+    return img.convert('RGBA')
+
+
+def load_image_from_bytes(data):
+    if not data:
+        raise ValueError('Image data is empty')
+    with Image.open(BytesIO(data)) as img:
+        return normalize_image(img)
+
+
+def load_image_from_file(path):
+    with Image.open(path) as img:
+        return normalize_image(img)
+
+
 def fit_inside(img, max_w, max_h):
     scale = min(max_w / img.width, max_h / img.height)
     new_w = max(1, int(img.width * scale))
@@ -49,7 +76,7 @@ def load_image_from_url(url, timeout=10):
         raise ValueError('Only http(s) URLs are supported')
     r = requests.get(url, timeout=timeout)
     r.raise_for_status()
-    return Image.open(BytesIO(r.content)).convert('RGBA')
+    return load_image_from_bytes(r.content)
 
 
 def maybe_cache_web_image(img, url, kind='poster'):
@@ -244,7 +271,7 @@ def render_card(template_name, poster_image=None, logo_image=None, crop_mode='ce
         return cover_image(img, w, h)
 
     if mode == 'layered-dual-corner':
-        template_img = Image.open(resource_path(cfg['image_path'])).convert('RGBA')
+        template_img = load_image_from_file(resource_path(cfg['image_path']))
         base = Image.new('RGBA', template_img.size, (0, 0, 0, 0))
         if poster_image:
             pad = 3
@@ -254,7 +281,7 @@ def render_card(template_name, poster_image=None, logo_image=None, crop_mode='ce
         base.paste(template_img, (0, 0), template_img)
         nls_file = 'templates/nls_white.png' if nfc_logo_color == 'white' else 'templates/nls_black.png'
         if os.path.exists(resource_path(nls_file)):
-            nls_logo = Image.open(resource_path(nls_file)).convert('RGBA')
+            nls_logo = load_image_from_file(resource_path(nls_file))
             nls_cfg = cfg['nls']
             scale = min(nls_cfg['max_width'] / nls_logo.width, nls_cfg['max_height'] / nls_logo.height, 1)
             nls_logo = nls_logo.resize((int(nls_logo.width * scale), int(nls_logo.height * scale)), Image.LANCZOS)
@@ -282,7 +309,7 @@ def render_card(template_name, poster_image=None, logo_image=None, crop_mode='ce
         poster = crop(poster_image, cfg['size']['w'], cfg['size']['h'])
         return apply_rounded_corners(poster, cfg.get('corner_radius', 24))
 
-    template_img = Image.open(resource_path(cfg['image_path'])).convert('RGBA')
+    template_img = load_image_from_file(resource_path(cfg['image_path']))
 
     if mode == 'layered':
         base = Image.new('RGBA', template_img.size, (0, 0, 0, 0))

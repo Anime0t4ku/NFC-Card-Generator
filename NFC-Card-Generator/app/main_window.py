@@ -24,8 +24,8 @@ from app.config import (
 )
 from app.image_engine import (
     TEMPLATES, TEMPLATE_THUMB_W, TEMPLATE_THUMB_H, THUMB_W, THUMB_H,
-    ICON_THUMB_SIZE, fit_inside, load_image_from_url, maybe_cache_web_image,
-    render_card, render_nfc_print_sheet
+    ICON_THUMB_SIZE, fit_inside, load_image_from_url, load_image_from_bytes,
+    load_image_from_file, maybe_cache_web_image, render_card, render_nfc_print_sheet
 )
 from app import services
 
@@ -166,7 +166,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('NFC Card Generator v3.0.0 by Anime0t4ku')
+        self.setWindowTitle('NFC Card Generator v3.1.0')
         self.resize(1200, 1000)
         self.setMinimumSize(1000, 700)
         icon_path = resource_path('Icon.png')
@@ -333,7 +333,7 @@ class MainWindow(QMainWindow):
 
             p = resource_path(cfg['image_path'])
             if os.path.exists(p):
-                img = Image.open(p).convert('RGBA')
+                img = load_image_from_file(p)
                 btn.setIcon(QIcon(pil_to_pixmap(fit_inside(img, TEMPLATE_THUMB_W, TEMPLATE_THUMB_H))))
 
             btn.setChecked(name == self.template_name)
@@ -726,27 +726,33 @@ class MainWindow(QMainWindow):
     def add_worker_item(self, item):
         if not self.is_current_search(item.get('search_id')):
             return
-        if item['kind'] == 'steam':
-            stored = (item['grid'], item['data'])
-            self.source_state['steam']['thumbs'].append(stored)
-            self.add_steam_thumb(item['grid'], item['data'])
-        elif item['kind'] == 'tmdb':
-            self.source_state['tmdb']['thumbs'].append(item['data'])
-            self.add_tmdb_thumb(item['data'])
-        elif item['kind'] == 'system':
-            stored = (item['data'], item['path'])
-            self.source_state['system']['thumbs'].append(stored)
-            self.add_system_thumb(item['data'], item['path'])
+        try:
+            if item['kind'] == 'steam':
+                stored = (item['grid'], item['data'])
+                self.add_steam_thumb(item['grid'], item['data'])
+                self.source_state['steam']['thumbs'].append(stored)
+            elif item['kind'] == 'tmdb':
+                self.add_tmdb_thumb(item['data'])
+                self.source_state['tmdb']['thumbs'].append(item['data'])
+            elif item['kind'] == 'system':
+                stored = (item['data'], item['path'])
+                self.add_system_thumb(item['data'], item['path'])
+                self.source_state['system']['thumbs'].append(stored)
+        except Exception as e:
+            self.show_status(f'Skipped unsupported image: {e}')
 
     def restore_thumb(self, source, item):
-        if source == 'steam':
-            grid, data = item
-            self.add_steam_thumb(grid, data)
-        elif source == 'tmdb':
-            self.add_tmdb_thumb(item)
-        elif source == 'system':
-            data, path = item
-            self.add_system_thumb(data, path)
+        try:
+            if source == 'steam':
+                grid, data = item
+                self.add_steam_thumb(grid, data)
+            elif source == 'tmdb':
+                self.add_tmdb_thumb(item)
+            elif source == 'system':
+                data, path = item
+                self.add_system_thumb(data, path)
+        except Exception as e:
+            self.show_status(f'Skipped unsupported image: {e}')
 
     def add_thumb_button(self, img, callback, context_menu=None):
         i = len(self.thumb_refs)
@@ -762,15 +768,15 @@ class MainWindow(QMainWindow):
         self.thumb_grid.addWidget(btn, (i // 3), i % 3, Qt.AlignmentFlag.AlignCenter)
 
     def add_steam_thumb(self, grid, data):
-        img = Image.open(BytesIO(data)).convert('RGBA').resize((THUMB_W, THUMB_H), Image.LANCZOS)
+        img = load_image_from_bytes(data).resize((THUMB_W, THUMB_H), Image.LANCZOS)
         self.add_thumb_button(img, lambda g=grid: self.apply_steam_poster(g))
 
     def add_tmdb_thumb(self, data):
-        img = Image.open(BytesIO(data)).convert('RGBA').resize((THUMB_W, THUMB_H), Image.LANCZOS)
+        img = load_image_from_bytes(data).resize((THUMB_W, THUMB_H), Image.LANCZOS)
         self.add_thumb_button(img, lambda d=data: self.apply_tmdb_poster(d))
 
     def add_system_thumb(self, data, path):
-        img = fit_inside(Image.open(BytesIO(data)).convert('RGBA'), ICON_THUMB_SIZE, ICON_THUMB_SIZE)
+        img = fit_inside(load_image_from_bytes(data), ICON_THUMB_SIZE, ICON_THUMB_SIZE)
         def menu(global_pos, p=path):
             m = QMenu(self)
             if p in self.favourite_logos:
@@ -807,7 +813,9 @@ class MainWindow(QMainWindow):
 
     def apply_steam_poster(self, grid):
         try:
-            poster = Image.open(BytesIO(requests.get(grid['url'], timeout=15).content)).convert('RGBA')
+            r = requests.get(grid['url'], timeout=15)
+            r.raise_for_status()
+            poster = load_image_from_bytes(r.content)
             self.selected_poster_image = poster
             self.poster_orientation = 'horizontal' if poster.width > poster.height else 'vertical'
             self.update_crop_labels()
@@ -816,15 +824,18 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, 'Error', f'Failed to load poster:\n{e}')
 
     def apply_tmdb_poster(self, data):
-        poster = Image.open(BytesIO(data)).convert('RGBA')
-        self.selected_poster_image = poster
-        self.poster_orientation = 'vertical'
-        self.update_crop_labels()
-        self.render_current()
+        try:
+            poster = load_image_from_bytes(data)
+            self.selected_poster_image = poster
+            self.poster_orientation = 'vertical'
+            self.update_crop_labels()
+            self.render_current()
+        except Exception as e:
+            QMessageBox.critical(self, 'Error', f'Failed to load poster:\n{e}')
 
     def apply_system_icon(self, path):
         try:
-            self.logo_image = Image.open(path).convert('RGBA')
+            self.logo_image = load_image_from_file(path)
             self.logo_path = path
             self.logo_name = sanitize_filename(os.path.splitext(os.path.basename(path))[0])
             self.render_current()
@@ -939,7 +950,7 @@ class MainWindow(QMainWindow):
         if not p:
             return
         try:
-            img = Image.open(p).convert('RGBA')
+            img = load_image_from_file(p)
             self.selected_poster_image = img
             self.poster_orientation = 'horizontal' if img.width > img.height else 'vertical'
             self.update_crop_labels()
@@ -953,7 +964,7 @@ class MainWindow(QMainWindow):
         if not p:
             return
         try:
-            self.logo_image = Image.open(p).convert('RGBA')
+            self.logo_image = load_image_from_file(p)
             self.logo_path = p
             self.logo_name = sanitize_filename(os.path.splitext(os.path.basename(p))[0])
             self.render_current()
@@ -1127,7 +1138,7 @@ class MainWindow(QMainWindow):
                 return
 
             try:
-                slots[i] = Image.open(path).convert('RGBA')
+                slots[i] = load_image_from_file(path)
                 update_preview()
             except Exception as e:
                 QMessageBox.critical(
@@ -1188,7 +1199,7 @@ class MainWindow(QMainWindow):
 
             for i, path in enumerate(paths[:10]):
                 try:
-                    slots[i] = Image.open(path).convert('RGBA')
+                    slots[i] = load_image_from_file(path)
                 except Exception:
                     pass
 
