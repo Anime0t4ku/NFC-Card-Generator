@@ -28,17 +28,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller pillow
-
-      - name: Convert PNG icon to ICO
-        shell: pwsh
-        working-directory: NFC-Card-Generator
-        run: |
-          python - <<'PY'
-          from PIL import Image
-          img = Image.open("icon.png").convert("RGBA")
-          img.save("app.ico", sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])
-          PY
+          pip install pyinstaller
 
       - name: Build Windows executable
         shell: cmd
@@ -72,7 +62,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller pillow
+          pip install pyinstaller
 
       - name: Build Linux executable
         working-directory: NFC-Card-Generator
@@ -103,12 +93,12 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         working-directory: NFC-Card-Generator
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller pillow
+          pip install pyinstaller
 
       - name: Convert PNG icon to ICNS
         working-directory: NFC-Card-Generator
@@ -123,7 +113,7 @@ jobs:
           sips -z 256 256 icon.png --out app.iconset/icon_256x256.png
           sips -z 512 512 icon.png --out app.iconset/icon_256x256@2x.png
           sips -z 512 512 icon.png --out app.iconset/icon_512x512.png
-          cp icon.png app.iconset/icon_512x512@2x.png
+          sips -z 1024 1024 icon.png --out app.iconset/icon_512x512@2x.png
           iconutil -c icns app.iconset -o app.icns
 
       - name: Build macOS app
