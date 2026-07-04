@@ -166,7 +166,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('NFC Card Generator v3.1.0')
+        self.setWindowTitle('NFC Card Generator v3.2.0')
         self.resize(1200, 1000)
         self.setMinimumSize(1000, 700)
         icon_path = resource_path('Icon.png')
@@ -1008,6 +1008,11 @@ class MainWindow(QMainWindow):
         if not self.output_image:
             QMessageBox.warning(self, 'No Image', 'There is no rendered image to save.')
             return
+        if self.output_dir and not os.path.isdir(self.output_dir):
+            try:
+                os.makedirs(self.output_dir, exist_ok=True)
+            except Exception:
+                pass
         if not self.output_dir or not os.path.isdir(self.output_dir):
             self.settings_pick_output(QLabel())
             if not self.output_dir:
@@ -1031,7 +1036,10 @@ class MainWindow(QMainWindow):
         if self.logo_name:
             name += '_' + self.logo_name
         ts = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        path, _ = QFileDialog.getSaveFileName(self, 'Save Image', f'{name}_{ts}.png', 'PNG Image (*.png)')
+        default = f'{name}_{ts}.png'
+        if self.output_dir:
+            default = os.path.join(self.output_dir, default)
+        path, _ = QFileDialog.getSaveFileName(self, 'Save Image', default, 'PNG Image (*.png)')
         if path:
             try:
                 self.output_image.save(path, dpi=(300, 300))
@@ -1263,6 +1271,8 @@ class MainWindow(QMainWindow):
                 sanitize_filename(self.current_game_title or 'nfc_cards')
                 + f'_print_sheet_{ts}.pdf'
             )
+            if self.output_dir:
+                default = os.path.join(self.output_dir, default)
 
             path, _ = QFileDialog.getSaveFileName(
                 d,

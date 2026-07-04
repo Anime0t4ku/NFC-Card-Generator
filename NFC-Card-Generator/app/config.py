@@ -4,15 +4,44 @@ import re
 import sys
 
 
+APP_NAME = 'NFC Card Generator'
+
+
+def is_macos_binary():
+    return sys.platform == 'darwin' and getattr(sys, 'frozen', False)
+
+
 def get_base_dir():
     if getattr(sys, 'frozen', False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def get_app_support_dir():
+    return os.path.join(os.path.expanduser('~'), 'Library', 'Application Support', APP_NAME)
+
+
+def get_data_dir():
+    if is_macos_binary():
+        return get_app_support_dir()
+    return get_base_dir()
+
+
+def get_default_output_dir():
+    if is_macos_binary():
+        return os.path.join(DATA_DIR, 'output')
+    return None
+
+
+def ensure_dir(path):
+    if path:
+        os.makedirs(path, exist_ok=True)
+
+
 BASE_DIR = get_base_dir()
-CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
-WEB_IMAGE_DIR = os.path.join(BASE_DIR, 'web-images')
+DATA_DIR = get_data_dir()
+CONFIG_FILE = os.path.join(DATA_DIR, 'config.json')
+WEB_IMAGE_DIR = os.path.join(DATA_DIR, 'web-images')
 WEB_POSTER_DIR = os.path.join(WEB_IMAGE_DIR, 'posters')
 WEB_LOGO_DIR = os.path.join(WEB_IMAGE_DIR, 'logos')
 
@@ -39,6 +68,7 @@ def load_config():
 
 
 def save_config(cfg):
+    ensure_dir(os.path.dirname(CONFIG_FILE))
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(cfg, f, indent=2)
 
@@ -65,7 +95,14 @@ def save_api_key(key, service='steamgriddb'):
 
 
 def load_output_dir():
-    return get_value('output_directory')
+    path = get_value('output_directory')
+    if path:
+        return path
+
+    default_path = get_default_output_dir()
+    if default_path:
+        ensure_dir(default_path)
+    return default_path
 
 
 def save_output_dir(path):
