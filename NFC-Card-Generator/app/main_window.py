@@ -20,7 +20,7 @@ from app.config import (
     load_output_dir, save_output_dir, load_icon_pack_dir, save_icon_pack_dir,
     load_cache_posters, save_cache_posters, load_cache_logos, save_cache_logos,
     load_search_cached_logos, save_search_cached_logos, load_favourite_logos,
-    add_favourite_logo, remove_favourite_logo
+    add_favourite_logo, remove_favourite_logo, load_window_size, save_window_size
 )
 from app.image_engine import (
     TEMPLATES, TEMPLATE_THUMB_W, TEMPLATE_THUMB_H, THUMB_W, THUMB_H,
@@ -28,6 +28,7 @@ from app.image_engine import (
     load_image_from_file, maybe_cache_web_image, render_card, render_nfc_print_sheet
 )
 from app import services
+from app.ui_scale import scale, scaled_size
 
 
 class Worker(QThread):
@@ -109,7 +110,7 @@ class SelectDialog(QDialog):
     def __init__(self, title, labels, parent=None):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.resize(520, 420)
+        self.resize(scale(520), scale(420))
         self.result_index = None
         layout = QVBoxLayout(self)
         self.list_widget = QListWidget()
@@ -139,7 +140,7 @@ class TextInputDialog(QDialog):
     def __init__(self, title, prompt, value='', parent=None):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.resize(540, 150)
+        self.resize(scale(540), scale(150))
         self.value = None
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(prompt))
@@ -166,9 +167,13 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('NFC Card Generator v3.2.0')
-        self.resize(1200, 1000)
-        self.setMinimumSize(1000, 700)
+        self.setWindowTitle('NFC Card Generator v3.3.0')
+        saved_window_size = load_window_size()
+        if saved_window_size:
+            self.resize(*saved_window_size)
+        else:
+            self.resize(scale(1300), scale(1000))
+        self.setMinimumSize(scale(1100), scale(700))
         icon_path = resource_path('Icon.png')
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
@@ -205,62 +210,60 @@ class MainWindow(QMainWindow):
     def build_ui(self):
         central = QWidget()
         root = QVBoxLayout(central)
-        root.setContentsMargins(10, 10, 10, 10)
-        root.setSpacing(8)
+        root.setContentsMargins(scale(10), scale(10), scale(10), scale(10))
+        root.setSpacing(scale(8))
         self.setCentralWidget(central)
 
         self.build_template_selector(root)
         self.build_crop_row(root)
         self.build_controls_row(root)
 
-        # Center the combined thumbnail/results + preview block.
-        main_outer = QHBoxLayout()
-        main_outer.setContentsMargins(0, 0, 0, 0)
-        main_outer.setSpacing(0)
-        root.addLayout(main_outer, 1)
-
-        main_outer.addStretch(1)
-
         main_widget = QWidget()
+        main_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         main = QHBoxLayout(main_widget)
         main.setContentsMargins(0, 0, 0, 0)
-        main.setSpacing(30)
-
-        main_outer.addWidget(main_widget, 0, Qt.AlignmentFlag.AlignHCenter)
-        main_outer.addStretch(1)
+        main.setSpacing(scale(24))
+        root.addWidget(main_widget, 1)
 
         selector_container = QWidget()
+        selector_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         selector_layout = QVBoxLayout(selector_container)
         selector_layout.setContentsMargins(0, 0, 0, 0)
         self.thumb_scroll = QScrollArea()
         self.thumb_scroll.setWidgetResizable(True)
-        self.thumb_scroll.setMinimumWidth(540)
-        self.thumb_scroll.setMaximumWidth(570)
+        self.thumb_scroll.setMinimumWidth(scale(760))
+        self.thumb_scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.thumb_widget = QWidget()
         self.thumb_grid = QGridLayout(self.thumb_widget)
+        self.thumb_grid.setHorizontalSpacing(scale(12))
+        self.thumb_grid.setVerticalSpacing(scale(12))
         self.thumb_grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+        self.thumb_columns = 4
         self.thumb_scroll.setWidget(self.thumb_widget)
         selector_layout.addWidget(self.thumb_scroll)
-        main.addWidget(selector_container, 0, Qt.AlignmentFlag.AlignHCenter)
+        main.addWidget(selector_container, 3)
 
         preview_container = QWidget()
-        preview_container.setMinimumWidth(380)
+        self.preview_container = preview_container
+        preview_container.setMinimumWidth(scale(340))
+        preview_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         preview_layout = QVBoxLayout(preview_container)
         preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(scale(4))
         preview_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
-        preview_title = QLabel('Preview')
-        preview_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_layout.addWidget(preview_title, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.preview_title = QLabel('Preview')
+        self.preview_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        preview_layout.addWidget(self.preview_title, 0, Qt.AlignmentFlag.AlignHCenter)
 
         self.preview_label = QLabel()
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setMinimumSize(260, 400)
-        self.preview_label.setMaximumSize(340, 530)
-        self.preview_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.preview_label.setScaledContents(False)
+        self.preview_label.setMinimumSize(1, 1)
+        self.preview_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         preview_layout.addWidget(self.preview_label, 0, Qt.AlignmentFlag.AlignHCenter)
         preview_layout.addStretch(1)
-        main.addWidget(preview_container, 0, Qt.AlignmentFlag.AlignHCenter)
+        main.addWidget(preview_container, 1)
 
         # Center bottom actions as a compact button row.
         bottom_outer = QHBoxLayout()
@@ -272,7 +275,7 @@ class MainWindow(QMainWindow):
         bottom_widget = QWidget()
         bottom = QHBoxLayout(bottom_widget)
         bottom.setContentsMargins(0, 0, 0, 0)
-        bottom.setSpacing(8)
+        bottom.setSpacing(scale(8))
 
         settings_btn = QPushButton('Settings')
         settings_btn.clicked.connect(self.open_settings)
@@ -305,18 +308,18 @@ class MainWindow(QMainWindow):
     def build_template_selector(self, root):
         group = QGroupBox('Select Template')
         outer = QVBoxLayout(group)
-        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setContentsMargins(scale(8), scale(8), scale(8), scale(8))
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setFixedHeight(TEMPLATE_THUMB_H + 78)
+        scroll.setFixedHeight(scale(TEMPLATE_THUMB_H + 78))
 
         content = QWidget()
         row = QHBoxLayout(content)
-        row.setContentsMargins(4, 4, 4, 4)
-        row.setSpacing(10)
+        row.setContentsMargins(scale(4), scale(4), scale(4), scale(4))
+        row.setSpacing(scale(10))
         row.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
         self.template_group = QButtonGroup(self)
@@ -327,8 +330,8 @@ class MainWindow(QMainWindow):
             btn.setCheckable(True)
             btn.setText(name)
             btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-            btn.setIconSize(QSize(TEMPLATE_THUMB_W, TEMPLATE_THUMB_H))
-            btn.setFixedSize(TEMPLATE_THUMB_W + 28, TEMPLATE_THUMB_H + 48)
+            btn.setIconSize(scaled_size(TEMPLATE_THUMB_W, TEMPLATE_THUMB_H))
+            btn.setFixedSize(scale(TEMPLATE_THUMB_W + 28), scale(TEMPLATE_THUMB_H + 48))
             btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
             p = resource_path(cfg['image_path'])
@@ -355,7 +358,7 @@ class MainWindow(QMainWindow):
 
         crop_group = QGroupBox('Poster Crop Mode')
         crop_layout = QHBoxLayout(crop_group)
-        crop_layout.setContentsMargins(10, 8, 10, 8)
+        crop_layout.setContentsMargins(scale(10), scale(8), scale(10), scale(8))
 
         self.crop_group = QButtonGroup(self)
         self.crop_buttons = {}
@@ -370,7 +373,7 @@ class MainWindow(QMainWindow):
 
         self.crop_slider = QSlider(Qt.Orientation.Horizontal)
         self.crop_slider.setRange(0, 1000)
-        self.crop_slider.setFixedWidth(220)
+        self.crop_slider.setFixedWidth(scale(220))
         self.crop_slider.setVisible(False)
         self.crop_slider.valueChanged.connect(lambda *_: self.render_current())
         crop_layout.addWidget(self.crop_slider)
@@ -384,7 +387,7 @@ class MainWindow(QMainWindow):
 
         self.template9_group = QGroupBox('SV-001 Options')
         t9 = QHBoxLayout(self.template9_group)
-        t9.setContentsMargins(10, 8, 10, 8)
+        t9.setContentsMargins(scale(10), scale(8), scale(10), scale(8))
 
         self.nfc_color_black = QRadioButton('Black')
         self.nfc_color_white = QRadioButton('White')
@@ -431,7 +434,7 @@ class MainWindow(QMainWindow):
         row_widget = QWidget()
         row = QHBoxLayout(row_widget)
         row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(8)
+        row.setSpacing(scale(8))
 
         self.controls_row = row
 
@@ -471,13 +474,13 @@ class MainWindow(QMainWindow):
         row.addWidget(QLabel('Search:'))
 
         self.search_entry = QLineEdit()
-        self.search_entry.setFixedWidth(260)
+        self.search_entry.setFixedWidth(scale(260))
         self.search_entry.returnPressed.connect(self.search)
         self.search_entry.textChanged.connect(lambda text: self.clear_btn.setEnabled(bool(text)))
         row.addWidget(self.search_entry)
 
         self.clear_btn = QPushButton('✕')
-        self.clear_btn.setFixedWidth(30)
+        self.clear_btn.setFixedWidth(scale(30))
         self.clear_btn.setEnabled(False)
         self.clear_btn.clicked.connect(self.clear_search)
         row.addWidget(self.clear_btn)
@@ -566,16 +569,60 @@ class MainWindow(QMainWindow):
         if not self.output_image:
             return
         img = self.output_image.copy()
-        available = self.preview_label.size()
-        w = max(1, min(available.width(), 340))
-        h = max(1, min(available.height(), 530))
-        scale = min(w / img.width, h / img.height)
-        preview = img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))), Image.LANCZOS)
+
+        # Keep export/render pixels untouched, but let the on-screen preview use
+        # the available UI space. The target height follows the poster results
+        # area so both columns end at the same vertical position.
+        title_h = self.preview_title.sizeHint().height() if hasattr(self, 'preview_title') else 0
+        # Use the scroll area's viewport height, not the outer scroll widget
+        # height. The outer height includes the frame/scrollbar area, which can
+        # make the preview a few pixels too tall on macOS Retina and clip the
+        # bottom edge. Keep a small safety margin so the full card remains
+        # visible while still following the poster/results area height.
+        scroll_h = self.thumb_scroll.viewport().height() if hasattr(self.thumb_scroll, 'viewport') else self.thumb_scroll.height()
+        container_h = self.preview_container.height() - title_h - scale(4)
+        available_h = max(scale(220), min(scroll_h, container_h) - scale(12))
+        available_w = max(scale(220), self.preview_container.width() - scale(12))
+        # The preview should be allowed to grow with the window. In the previous
+        # layout the preview column used a non-expanding width, so the image
+        # became width-capped and stopped growing even when more vertical space
+        # was available. The column now receives stretch space, and this keeps
+        # the image aspect-correct within that full area.
+        preview_scale = min(available_w / img.width, available_h / img.height)
+
+        preview = img.resize((
+            max(1, int(img.width * preview_scale)),
+            max(1, int(img.height * preview_scale))
+        ), Image.LANCZOS)
+        self.preview_label.setFixedSize(preview.width, preview.height)
         self.preview_label.setPixmap(pil_to_pixmap(preview))
+
+    def get_thumb_column_count(self):
+        button_w = scale(max(THUMB_W, ICON_THUMB_SIZE) + 30)
+        viewport_w = self.thumb_scroll.viewport().width() if hasattr(self, 'thumb_scroll') else 0
+        if viewport_w <= 0:
+            return 4
+        return max(4, viewport_w // max(1, button_w))
+
+    def reflow_thumbs(self):
+        if not hasattr(self, 'thumb_grid'):
+            return
+        columns = self.get_thumb_column_count()
+        if columns == getattr(self, 'thumb_columns', None):
+            return
+        self.thumb_columns = columns
+        for i, btn in enumerate(self.thumb_refs):
+            self.thumb_grid.addWidget(btn, i // columns, i % columns, Qt.AlignmentFlag.AlignCenter)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        QTimer.singleShot(0, self.reflow_thumbs)
         QTimer.singleShot(0, self.update_preview)
+
+    def closeEvent(self, event):
+        if not self.isMinimized():
+            save_window_size(self.width(), self.height())
+        super().closeEvent(event)
 
     def clear_thumbs(self):
         while self.thumb_grid.count():
@@ -590,7 +637,7 @@ class MainWindow(QMainWindow):
         label = QLabel(text)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setStyleSheet('color: gray;')
-        self.thumb_grid.addWidget(label, 0, 0, 1, 3)
+        self.thumb_grid.addWidget(label, 0, 0, 1, max(1, self.get_thumb_column_count()))
 
     def refresh_placeholder_text(self):
         if self.source == 'steam':
@@ -758,14 +805,16 @@ class MainWindow(QMainWindow):
         i = len(self.thumb_refs)
         btn = QPushButton()
         btn.setIcon(QIcon(pil_to_pixmap(img)))
-        btn.setIconSize(QSize(img.width, img.height))
-        btn.setFixedSize(img.width + 18, img.height + 18)
+        btn.setIconSize(scaled_size(img.width, img.height))
+        btn.setFixedSize(scale(img.width + 18), scale(img.height + 18))
         btn.clicked.connect(lambda _checked=False, cb=callback: cb())
         if context_menu:
             btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             btn.customContextMenuRequested.connect(lambda pos, b=btn: context_menu(b.mapToGlobal(pos)))
         self.thumb_refs.append(btn)
-        self.thumb_grid.addWidget(btn, (i // 3), i % 3, Qt.AlignmentFlag.AlignCenter)
+        columns = self.get_thumb_column_count()
+        self.thumb_columns = columns
+        self.thumb_grid.addWidget(btn, i // columns, i % columns, Qt.AlignmentFlag.AlignCenter)
 
     def add_steam_thumb(self, grid, data):
         img = load_image_from_bytes(data).resize((THUMB_W, THUMB_H), Image.LANCZOS)
@@ -856,7 +905,7 @@ class MainWindow(QMainWindow):
     def open_settings(self):
         d = QDialog(self)
         d.setWindowTitle('Settings')
-        d.resize(560, 720)
+        d.resize(scale(560), scale(720))
         layout = QVBoxLayout(d)
         layout.addWidget(QLabel('<b>Settings</b>'))
         output_label = QLabel(self.output_dir or 'No output folder set')
@@ -1063,32 +1112,33 @@ class MainWindow(QMainWindow):
     def open_print_pdf_window(self):
         d = QDialog(self)
         d.setWindowTitle('Print PDF Template')
-        d.resize(980, 760)
+        d.resize(scale(980), scale(760))
 
         slots = [None] * 10
 
         layout = QVBoxLayout(d)
-        layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(10)
+        layout.setContentsMargins(scale(14), scale(14), scale(14), scale(14))
+        layout.setSpacing(scale(10))
 
         content = QHBoxLayout()
-        content.setSpacing(14)
+        content.setSpacing(scale(14))
         content.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         layout.addLayout(content, 1)
 
         # ---------------- LEFT: PREVIEW ----------------
         preview_box = QGroupBox('PDF Preview')
-        preview_box.setMinimumWidth(470)
+        preview_box.setMinimumWidth(scale(470))
         preview_layout = QVBoxLayout(preview_box)
-        preview_layout.setContentsMargins(12, 12, 12, 12)
+        preview_layout.setContentsMargins(scale(12), scale(12), scale(12), scale(12))
         preview_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
         preview = QLabel()
         preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview.setMinimumSize(420, 600)
+        preview.setScaledContents(False)
+        preview.setFixedSize(scale(420), scale(600))
         preview.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding
+            QSizePolicy.Policy.Fixed,
+            QSizePolicy.Policy.Fixed
         )
 
         preview_layout.addWidget(
@@ -1105,10 +1155,10 @@ class MainWindow(QMainWindow):
 
         # ---------------- RIGHT: CARD SLOTS ----------------
         slots_box = QGroupBox('Card Slots')
-        slots_box.setMinimumWidth(360)
+        slots_box.setMinimumWidth(scale(360))
         slots_layout = QVBoxLayout(slots_box)
-        slots_layout.setContentsMargins(12, 12, 12, 12)
-        slots_layout.setSpacing(6)
+        slots_layout.setContentsMargins(scale(12), scale(12), scale(12), scale(12))
+        slots_layout.setSpacing(scale(6))
         slots_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
         slot_labels = []
@@ -1125,7 +1175,7 @@ class MainWindow(QMainWindow):
                 show_cutlines=cutlines_check.isChecked()
             )
 
-            pw = 390
+            pw = scale(390)
             ph = int(page.height * (pw / page.width))
 
             preview.setPixmap(
@@ -1161,24 +1211,24 @@ class MainWindow(QMainWindow):
 
         for i in range(10):
             slot_row = QHBoxLayout()
-            slot_row.setSpacing(8)
+            slot_row.setSpacing(scale(8))
 
             number_label = QLabel(f'Card {i + 1}')
-            number_label.setFixedWidth(55)
+            number_label.setFixedWidth(scale(55))
             number_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
             state_label = QLabel('Empty')
-            state_label.setFixedWidth(62)
+            state_label.setFixedWidth(scale(62))
             state_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             state_label.setStyleSheet('color: gray;')
             slot_labels.append(state_label)
 
             load_btn = QPushButton('Load')
-            load_btn.setFixedWidth(70)
+            load_btn.setFixedWidth(scale(70))
             load_btn.clicked.connect(lambda _, idx=i: load_slot(idx))
 
             clear_btn = QPushButton('Clear')
-            clear_btn.setFixedWidth(70)
+            clear_btn.setFixedWidth(scale(70))
             clear_btn.clicked.connect(lambda _, idx=i: clear_slot(idx))
 
             slot_row.addWidget(number_label)
@@ -1224,8 +1274,8 @@ class MainWindow(QMainWindow):
         load_all = QPushButton('Load Multiple')
         clear_all = QPushButton('Clear All')
 
-        load_all.setMinimumWidth(120)
-        clear_all.setMinimumWidth(100)
+        load_all.setMinimumWidth(scale(120))
+        clear_all.setMinimumWidth(scale(100))
 
         load_all.clicked.connect(load_multiple)
         clear_all.clicked.connect(clear_all_slots)
@@ -1305,8 +1355,8 @@ class MainWindow(QMainWindow):
         export_btn = QPushButton('Export PDF')
         close_btn = QPushButton('Close')
 
-        export_btn.setMinimumWidth(110)
-        close_btn.setMinimumWidth(90)
+        export_btn.setMinimumWidth(scale(110))
+        close_btn.setMinimumWidth(scale(90))
 
         export_btn.clicked.connect(export_pdf)
         close_btn.clicked.connect(d.accept)

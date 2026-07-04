@@ -159,3 +159,28 @@ def remove_favourite_logo(path):
     favs = set(load_favourite_logos())
     favs.discard(path)
     save_favourite_logos(list(favs))
+
+def load_window_size():
+    value = get_value('window_size')
+    if not isinstance(value, dict):
+        return None
+    try:
+        width = int(value.get('width', 0))
+        height = int(value.get('height', 0))
+    except Exception:
+        return None
+    if width < 900 or height < 650:
+        return None
+    return width, height
+
+
+def save_window_size(width, height):
+    try:
+        width = int(width)
+        height = int(height)
+    except Exception:
+        return
+    if width < 900 or height < 650:
+        return
+    set_value('window_size', {'width': width, 'height': height})
+
