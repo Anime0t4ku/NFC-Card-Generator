@@ -344,6 +344,64 @@ def render_card(template_name, poster_image=None, logo_image=None, crop_mode='ce
     return base
 
 
+def flatten_visible_artwork_keep_outer_transparency(img):
+    """Return a PNG-safe RGBA image for Silhouette-style imports.
+
+    The rendered card can contain semi-transparent pixels from pasted logos or
+    artwork inside the visible card area. Some design/cutting apps can preview
+    those pixels as white seams. This keeps the original outer rounded-corner
+    transparency, but makes all non-edge-connected pixels fully opaque so the
+    visible artwork is flattened.
+    """
+    img = img.convert('RGBA')
+    w, h = img.size
+    alpha = img.getchannel('A')
+    alpha_px = alpha.load()
+
+    # Track alpha pixels that are connected to the canvas edge. Those are the
+    # real outside/corner transparency pixels that must remain for rounded cuts.
+    outer = bytearray(w * h)
+    queue = []
+
+    def add_if_outer(x, y):
+        i = y * w + x
+        if not outer[i] and alpha_px[x, y] < 255:
+            outer[i] = 1
+            queue.append((x, y))
+
+    for x in range(w):
+        add_if_outer(x, 0)
+        add_if_outer(x, h - 1)
+    for y in range(h):
+        add_if_outer(0, y)
+        add_if_outer(w - 1, y)
+
+    head = 0
+    while head < len(queue):
+        x, y = queue[head]
+        head += 1
+        if x > 0:
+            add_if_outer(x - 1, y)
+        if x < w - 1:
+            add_if_outer(x + 1, y)
+        if y > 0:
+            add_if_outer(x, y - 1)
+        if y < h - 1:
+            add_if_outer(x, y + 1)
+
+    new_alpha = Image.new('L', (w, h), 255)
+    new_alpha_px = new_alpha.load()
+    for y in range(h):
+        row = y * w
+        for x in range(w):
+            if outer[row + x]:
+                new_alpha_px[x, y] = alpha_px[x, y]
+
+    out = img.copy()
+    out.putalpha(new_alpha)
+    return out
+
+
 def render_nfc_print_sheet(slots, show_cutlines=False):
     page_w, page_h = 2480, 3508
     page = Image.new('RGB', (page_w, page_h), 'white')

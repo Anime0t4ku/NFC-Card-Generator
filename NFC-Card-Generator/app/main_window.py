@@ -25,7 +25,8 @@ from app.config import (
 from app.image_engine import (
     TEMPLATES, TEMPLATE_THUMB_W, TEMPLATE_THUMB_H, THUMB_W, THUMB_H,
     ICON_THUMB_SIZE, fit_inside, load_image_from_url, load_image_from_bytes,
-    load_image_from_file, maybe_cache_web_image, render_card, render_nfc_print_sheet
+    load_image_from_file, maybe_cache_web_image, render_card, render_nfc_print_sheet,
+    flatten_visible_artwork_keep_outer_transparency
 )
 from app import services
 from app.ui_scale import scale, scaled_size
@@ -167,7 +168,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('NFC Card Generator v3.3.0')
+        self.setWindowTitle('NFC Card Generator v3.3.1')
         saved_window_size = load_window_size()
         if saved_window_size:
             self.resize(*saved_window_size)
@@ -1073,7 +1074,7 @@ class MainWindow(QMainWindow):
         ts = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         path = os.path.join(self.output_dir, '_'.join(parts) + f'_{ts}.png')
         try:
-            self.output_image.save(path, dpi=(300, 300))
+            flatten_visible_artwork_keep_outer_transparency(self.output_image).save(path, dpi=(300, 300))
             self.show_status('Image saved')
         except Exception as e:
             QMessageBox.critical(self, 'Error', f'Failed to save image:\n{e}')
@@ -1091,7 +1092,7 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, 'Save Image', default, 'PNG Image (*.png)')
         if path:
             try:
-                self.output_image.save(path, dpi=(300, 300))
+                flatten_visible_artwork_keep_outer_transparency(self.output_image).save(path, dpi=(300, 300))
                 self.show_status('Image saved')
             except Exception as e:
                 QMessageBox.critical(self, 'Error', f'Failed to save image:\n{e}')

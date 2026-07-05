@@ -2,3 +2,5 @@
 config.json
 __pycache__/
 .idea/
+web-images/
+Output/
