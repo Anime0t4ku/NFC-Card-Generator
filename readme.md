@@ -1,3 +1,11 @@
+# This app is no longer maintained.
+
+Its features have moved to the **NFC Art Generator** in MiSTer Companion. Future improvements and fixes will be released through MiSTer Companion.
+
+Download: https://mistercompanion.org
+
+
+
 # NFC Card Generator
 
 NFC Card Generator is a desktop application for creating **print-ready NFC card artwork** using predefined visual templates.
